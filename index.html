@@ -57,8 +57,8 @@
 <div class="flex gap-2 mb-6 flex-wrap">
     <button class="tab-btn active" data-tab="respuestas">📬 Respuestas</button>
     <button class="tab-btn" data-tab="notificaciones">🔔 Enviar notificación</button>
-    <button class="tab-btn" data-tab="notif-log">📜 Notificaciones enviadas</button>
     <button class="tab-btn" data-tab="historial">📋 Historial usuario</button>
+    <button class="tab-btn" data-tab="notifs-enviadas">📤 Notifs enviadas</button>
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
@@ -132,43 +132,39 @@
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
-<!-- TAB: LOG DE NOTIFICACIONES -->
+<!-- TAB: HISTORIAL -->
 <!-- ───────────────────────────────────────────────────────── -->
-<div id="tab-notif-log" class="hidden">
-    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
-        <input type="text" id="nlog-filter-user" placeholder="Filtrar por usuario..." style="width:200px;">
-        <select id="nlog-filter-tipo" style="width:170px;">
-            <option value="">Todos los tipos</option>
-            <option value="general">🔔 General</option>
-            <option value="respuesta">📬 Respuesta</option>
-            <option value="anuncio">📢 Anuncio</option>
-            <option value="nuevo_misterio">🔍 Nuevo misterio</option>
-        </select>
-        <button class="btn btn-blue" id="nlog-load-btn">🔄 Cargar</button>
-        <span style="font-size:12px;color:#8b949e;" id="nlog-count"></span>
-    </div>
-    <div class="card overflow-hidden">
-        <div id="nlog-list"><p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar" para ver las notificaciones enviadas</p></div>
+<div id="tab-historial" class="hidden">
+    <div class="card p-6 max-w-xl">
+        <h2 class="text-lg font-bold text-white mb-4">Historial de un usuario</h2>
+        <div class="flex gap-2 mb-4">
+            <input type="text" id="hist-user-input" placeholder='ID público (ej: pata#guay)'>
+            <button class="btn btn-blue" style="flex-shrink:0;" id="hist-load-btn">Ver historial</button>
+        </div>
+        <div id="hist-list"><p style="color:#8b949e;font-size:13px;">Introduce el ID público del usuario.</p></div>
     </div>
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
-<!-- TAB: HISTORIAL -->
+<!-- TAB: NOTIFICACIONES ENVIADAS -->
 <!-- ───────────────────────────────────────────────────────── -->
-<div id="tab-historial" class="hidden">
-    <div class="card p-6 max-w-2xl">
-        <h2 class="text-lg font-bold text-white mb-4">Historial de un usuario</h2>
-        <div class="flex gap-2 mb-5">
-            <input type="text" id="hist-user-input" placeholder='ID público (ej: pata#guay)'>
-            <button class="btn btn-blue" style="flex-shrink:0;" id="hist-load-btn">Ver historial</button>
+<div id="tab-notifs-enviadas" class="hidden">
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <select id="notif-sent-filter-tipo" style="width:180px;">
+            <option value="">Todos los tipos</option>
+            <option value="general">🔔 General</option>
+            <option value="respuesta">📬 Respuesta</option>
+            <option value="nuevo_misterio">🔍 Nuevo misterio</option>
+            <option value="anuncio">📢 Anuncio</option>
+        </select>
+        <input type="text" id="notif-sent-filter-user" placeholder="Filtrar por usuario (o TODOS)..." style="width:220px;">
+        <button class="btn btn-blue" id="load-notifs-sent-btn">🔄 Cargar</button>
+        <span style="font-size:12px;color:#8b949e;" id="notifs-sent-count"></span>
+    </div>
+    <div class="card overflow-hidden">
+        <div id="notifs-sent-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar" para ver las notificaciones enviadas</p>
         </div>
-        <!-- Sub-tabs dentro del historial -->
-        <div class="flex gap-2 mb-4">
-            <button class="tab-btn active" data-htab="respuestas" style="padding:5px 14px;font-size:12px;">📬 Respuestas</button>
-            <button class="tab-btn" data-htab="notifs" style="padding:5px 14px;font-size:12px;">🔔 Notificaciones</button>
-        </div>
-        <div id="hist-resp-list"><p style="color:#8b949e;font-size:13px;">Introduce el ID público del usuario.</p></div>
-        <div id="hist-notif-list" class="hidden"><p style="color:#8b949e;font-size:13px;">Introduce el ID público y pulsa Ver historial.</p></div>
     </div>
 </div>
 
@@ -181,29 +177,26 @@
         </div>
         <div id="review-content" class="space-y-3 mb-5"></div>
         <div>
-            <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Comentario para el usuario</label>
+            <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Comentario para el usuario (opcional)</label>
             <textarea id="review-comment" rows="3" placeholder="Deja aquí un comentario..."></textarea>
         </div>
-        <!-- Botones para respuestas PENDIENTES -->
-        <div id="review-btns-pending" class="flex gap-3 mt-4 justify-end flex-wrap">
+        <!-- Botones para respuestas pendientes -->
+        <div class="flex gap-3 mt-4 justify-end flex-wrap" id="review-btns-pending">
             <button class="btn btn-gray" onclick="closeReviewModal()">Cancelar</button>
-            <button class="btn btn-red"   id="review-wrong-btn">❌ Marcar incorrecta</button>
+            <button class="btn btn-red" id="review-wrong-btn">❌ Marcar incorrecta</button>
             <button class="btn btn-green" id="review-correct-btn">✅ Marcar correcta</button>
         </div>
-        <!-- Botones para respuestas YA REVISADAS -->
-        <div id="review-btns-done" class="hidden flex gap-3 mt-4 justify-end flex-wrap">
+        <!-- Botones para respuestas ya marcadas -->
+        <div class="flex gap-3 mt-4 justify-end flex-wrap hidden" id="review-btns-marked">
             <button class="btn btn-gray" onclick="closeReviewModal()">Cerrar</button>
             <button class="btn btn-gray" id="review-save-comment-btn">💾 Guardar comentario</button>
-            <button class="btn btn-purple" id="review-reopen-btn">✏️ Corregir veredicto</button>
+            <button class="btn btn-purple" id="review-remark-btn">✏️ Corregir veredicto</button>
         </div>
-        <!-- Confirmación de cambio de veredicto -->
-        <div id="review-btns-confirm" class="hidden mt-4 space-y-3">
-            <p style="font-size:12px;color:#f87171;background:#450a0a;border:1px solid #991b1b;border-radius:8px;padding:10px 14px;">⚠️ Esto cambiará el veredicto ya emitido. ¿Seguro?</p>
-            <div class="flex gap-3 justify-end flex-wrap">
-                <button class="btn btn-gray" id="review-cancel-reopen-btn">Cancelar</button>
-                <button class="btn btn-red"   id="review-change-wrong-btn">❌ Cambiar a incorrecta</button>
-                <button class="btn btn-green" id="review-change-correct-btn">✅ Cambiar a correcta</button>
-            </div>
+        <!-- Botones de corrección (ocultos, se muestran al pulsar Corregir) -->
+        <div class="flex gap-3 mt-3 justify-end flex-wrap hidden" id="review-btns-remark">
+            <span style="font-size:12px;color:#8b949e;align-self:center;">Cambiar a:</span>
+            <button class="btn btn-red" id="review-wrong-remark-btn">❌ Incorrecta</button>
+            <button class="btn btn-green" id="review-correct-remark-btn">✅ Correcta</button>
         </div>
     </div>
 </div>
@@ -212,7 +205,7 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════
-// CONFIGURACIÓN DE URL
+// CONFIGURACIÓN — cambia solo esta línea
 // ═══════════════════════════════════════════════════════════════════
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzWxNV_zyNIUveSDunEUXHCuHIkWmbtLiosFHEHwJYvpprn9_Rsg4OkLZ-pLjXiiO2EbA/exec';
 
@@ -225,11 +218,11 @@ let currentReviewRow = null;
 // ═══════════════════════════════════════════════════════════════════
 // TABS
 // ═══════════════════════════════════════════════════════════════════
-document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['respuestas','notificaciones','notif-log','historial'].forEach(t => {
+        ['respuestas','notificaciones','historial','notifs-enviadas'].forEach(t => {
             document.getElementById('tab-' + t).classList.toggle('hidden', t !== btn.dataset.tab);
         });
     });
@@ -337,9 +330,10 @@ function openReview(row) {
     const r = allResponses.find(x => x.row === row);
     if (!r) return;
     currentReviewRow = row;
-    const isReviewed = r.correcto === true || (r.correcto === false && r.comentario);
 
-    document.getElementById('review-title').textContent = `${r.nombre || r.idPublico} — ${r.misterio}`;
+    const isMarked = r.correcto === true || (r.correcto === false && r.comentario);
+
+    document.getElementById('review-title').textContent = `Revisando: ${r.nombre || r.idPublico} — ${r.misterio}`;
     document.getElementById('review-comment').value = r.comentario || '';
 
     const fecha = (() => { try { return new Date(r.fecha).toLocaleString('es'); } catch(e) { return r.fecha || ''; } })();
@@ -352,11 +346,15 @@ function openReview(row) {
                 <p style="font-size:11px;color:#8b949e;">${esc(r.idPublico || '')}</p>
             </div>
             <div style="background:#0d1117;border-radius:8px;padding:12px;">
-                <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:4px;">Misterio · ${fecha}</p>
+                <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:4px;">Misterio</p>
                 <p class="text-sm text-white font-bold">${esc(r.misterio || '')}</p>
-                ${isReviewed ? `<p style="font-size:11px;margin-top:4px;color:${r.correcto?'#4ade80':'#f87171'}">${r.correcto?'✅ Correcta':'❌ Incorrecta'}</p>` : '<p style="font-size:11px;color:#fb923c;margin-top:4px;">⏳ Pendiente</p>'}
+                <p style="font-size:11px;color:#6b7280;">${fecha}</p>
             </div>
         </div>
+        ${isMarked ? `<div style="background:${r.correcto ? '#052e16' : '#450a0a'};border-radius:8px;padding:10px;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;">${r.correcto ? '✅' : '❌'}</span>
+            <span style="font-size:13px;font-weight:700;color:${r.correcto ? '#4ade80' : '#f87171'};">Ya marcada como ${r.correcto ? 'correcta' : 'incorrecta'}</span>
+        </div>` : ''}
         <div style="background:#0d1117;border-radius:8px;padding:12px;">
             <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Solución propuesta</p>
             <p class="text-sm text-white">${esc(r.solucion || '—')}</p>
@@ -365,83 +363,93 @@ function openReview(row) {
             <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Explicación</p>
             <p class="text-sm text-gray-300">${esc(r.explicacion)}</p>
         </div>` : ''}
-        ${r.dificultad ? `<p style="font-size:12px;color:#8b949e;">Dificultad percibida: <strong style="color:#e6edf3;">${esc(r.dificultad)}</strong></p>` : ''}
+        ${r.dificultad ? `<div style="font-size:12px;color:#8b949e;">Dificultad percibida: <span style="color:#e6edf3;">${esc(r.dificultad)}</span></div>` : ''}
         ${r.opinion ? `<div style="background:#0d1117;border-radius:8px;padding:12px;">
-            <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Opinión / Sugerencia</p>
+            <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Opinión/Sugerencia</p>
             <p class="text-sm text-gray-300">${esc(r.opinion)}</p>
         </div>` : ''}
     `;
 
-    // Mostrar botones correctos
-    document.getElementById('review-btns-pending').classList.toggle('hidden', isReviewed);
-    document.getElementById('review-btns-done').classList.toggle('hidden', !isReviewed);
-    document.getElementById('review-btns-confirm').classList.add('hidden');
+    // Mostrar botones según estado
+    document.getElementById('review-btns-pending').classList.toggle('hidden', isMarked);
+    document.getElementById('review-btns-marked').classList.toggle('hidden', !isMarked);
+    document.getElementById('review-btns-remark').classList.add('hidden');
 
     document.getElementById('review-modal').classList.remove('hidden');
 }
 
 function closeReviewModal() {
     document.getElementById('review-modal').classList.add('hidden');
-    document.getElementById('review-btns-confirm').classList.add('hidden');
     currentReviewRow = null;
 }
 
-// Guardar solo comentario (sin cambiar veredicto)
+async function sendReview(action) {
+    if (!currentReviewRow) return;
+    const token   = document.getElementById('admin-token').value.trim();
+    const comment = encodeURIComponent(document.getElementById('review-comment').value.trim());
+    // Identify which button triggered this (could be pending or remark buttons)
+    const remarkVisible = !document.getElementById('review-btns-remark').classList.contains('hidden');
+    const btn = remarkVisible
+        ? document.getElementById(action === 'markCorrect' ? 'review-correct-remark-btn' : 'review-wrong-remark-btn')
+        : document.getElementById(action === 'markCorrect' ? 'review-correct-btn' : 'review-wrong-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳...';
+
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=${action}&token=${encodeURIComponent(token)}&row=${currentReviewRow}&comment=${comment}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); }
+        else {
+            toast(action === 'markCorrect' ? '✅ Marcada como correcta y puntos asignados' : '❌ Marcada como incorrecta');
+            // Actualizar localmente
+            const idx = allResponses.findIndex(r => r.row === currentReviewRow);
+            if (idx >= 0) {
+                allResponses[idx].correcto   = action === 'markCorrect';
+                allResponses[idx].comentario = decodeURIComponent(comment);
+            }
+            closeReviewModal();
+            renderResponses();
+        }
+    } catch(e) { toast('Error de conexión', false); }
+
+    btn.disabled = false;
+    btn.textContent = action === 'markCorrect' ? '✅ Correcta' : '❌ Incorrecta';
+}
+
+document.getElementById('review-correct-btn').addEventListener('click', () => sendReview('markCorrect'));
+document.getElementById('review-wrong-btn').addEventListener('click',   () => sendReview('markIncorrect'));
+document.getElementById('review-correct-remark-btn').addEventListener('click', () => sendReview('markCorrect'));
+document.getElementById('review-wrong-remark-btn').addEventListener('click',   () => sendReview('markIncorrect'));
+
+// Botón "Guardar comentario" (sin cambiar veredicto)
 document.getElementById('review-save-comment-btn').addEventListener('click', async () => {
+    if (!currentReviewRow) return;
     const token   = document.getElementById('admin-token').value.trim();
     const comment = document.getElementById('review-comment').value.trim();
-    if (!comment) { toast('Escribe un comentario primero', false); return; }
-
-    const r = allResponses.find(x => x.row === currentReviewRow);
-    const action = r?.correcto ? 'markCorrect' : 'markIncorrect';
-
     const btn = document.getElementById('review-save-comment-btn');
     btn.disabled = true; btn.textContent = '⏳...';
     try {
-        const url = `${APPS_SCRIPT_URL}?action=${action}&token=${encodeURIComponent(token)}&row=${currentReviewRow}&comment=${encodeURIComponent(comment)}`;
-        const res  = await fetch(url); const data = await res.json();
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=saveComment&token=${encodeURIComponent(token)}&row=${currentReviewRow}&comment=${encodeURIComponent(comment)}`);
+        const data = await res.json();
         if (data.error) { toast('Error: ' + data.error, false); }
         else {
-            const idx = allResponses.findIndex(x => x.row === currentReviewRow);
+            toast('💾 Comentario guardado');
+            const idx = allResponses.findIndex(r => r.row === currentReviewRow);
             if (idx >= 0) allResponses[idx].comentario = comment;
-            toast('💾 Comentario guardado y notificación enviada');
-            closeReviewModal(); renderResponses();
+            closeReviewModal();
+            renderResponses();
         }
     } catch(e) { toast('Error de conexión', false); }
     btn.disabled = false; btn.textContent = '💾 Guardar comentario';
 });
 
-// Mostrar confirmación para cambio de veredicto
-document.getElementById('review-reopen-btn').addEventListener('click', () => {
-    document.getElementById('review-btns-done').classList.add('hidden');
-    document.getElementById('review-btns-confirm').classList.remove('hidden');
+// Botón "Corregir veredicto" → muestra botones de correcto/incorrecto
+document.getElementById('review-remark-btn').addEventListener('click', () => {
+    document.getElementById('review-btns-remark').classList.remove('hidden');
+    document.getElementById('review-remark-btn').classList.add('hidden');
 });
-document.getElementById('review-cancel-reopen-btn').addEventListener('click', () => {
-    document.getElementById('review-btns-confirm').classList.add('hidden');
-    document.getElementById('review-btns-done').classList.remove('hidden');
-});
-document.getElementById('review-change-correct-btn').addEventListener('click', () => sendReview('markCorrect'));
-document.getElementById('review-change-wrong-btn').addEventListener('click',   () => sendReview('markIncorrect'));
 
-async function sendReview(action) {
-    const token   = document.getElementById('admin-token').value.trim();
-    const comment = encodeURIComponent(document.getElementById('review-comment').value.trim());
-    try {
-        const res  = await fetch(`${APPS_SCRIPT_URL}?action=${action}&token=${encodeURIComponent(token)}&row=${currentReviewRow}&comment=${comment}`);
-        const data = await res.json();
-        if (data.error) { toast('Error: ' + data.error, false); return; }
-        const idx = allResponses.findIndex(r => r.row === currentReviewRow);
-        if (idx >= 0) {
-            allResponses[idx].correcto   = action === 'markCorrect';
-            allResponses[idx].comentario = decodeURIComponent(comment);
-        }
-        toast(action === 'markCorrect' ? '✅ Correcta — puntos asignados' : '❌ Marcada como incorrecta');
-        closeReviewModal(); renderResponses();
-    } catch(e) { toast('Error de conexión', false); }
-}
-
-document.getElementById('review-correct-btn').addEventListener('click', () => sendReview('markCorrect'));
-document.getElementById('review-wrong-btn').addEventListener('click',   () => sendReview('markIncorrect'));
+// Cerrar modal con Escape
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeReviewModal(); });
 document.getElementById('review-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeReviewModal(); });
 
@@ -487,75 +495,8 @@ document.getElementById('send-notif-btn').addEventListener('click', async () => 
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// LOG DE NOTIFICACIONES ENVIADAS
+// HISTORIAL DE USUARIO
 // ═══════════════════════════════════════════════════════════════════
-let allNotifLog = [];
-
-document.getElementById('nlog-load-btn').addEventListener('click', loadNotifLog);
-
-async function loadNotifLog() {
-    const token = document.getElementById('admin-token').value.trim();
-    if (!token) { toast('Introduce el token admin', false); return; }
-    document.getElementById('nlog-list').innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:32px;">⏳ Cargando...</p>';
-    try {
-        const res  = await fetch(`${APPS_SCRIPT_URL}?action=notifLog&token=${encodeURIComponent(token)}`);
-        const data = await res.json();
-        if (data.error) { toast('Error: ' + data.error, false); return; }
-        allNotifLog = data;
-        renderNotifLog();
-        toast('✅ ' + data.length + ' notificaciones cargadas');
-    } catch(e) { toast('Error de conexión', false); }
-}
-
-['nlog-filter-user','nlog-filter-tipo'].forEach(id => {
-    document.getElementById(id).addEventListener('input', renderNotifLog);
-    document.getElementById(id).addEventListener('change', renderNotifLog);
-});
-
-function renderNotifLog() {
-    const user = document.getElementById('nlog-filter-user').value.toLowerCase();
-    const tipo = document.getElementById('nlog-filter-tipo').value;
-    const data = allNotifLog.filter(n => {
-        if (user && !n.idPublico?.toLowerCase().includes(user)) return false;
-        if (tipo && n.tipo !== tipo) return false;
-        return true;
-    });
-    document.getElementById('nlog-count').textContent = data.length + ' resultado' + (data.length===1?'':'s');
-    const list = document.getElementById('nlog-list');
-    if (!data.length) { list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:32px;">Sin resultados</p>'; return; }
-
-    const tipoIcon = { respuesta:'📬', anuncio:'📢', nuevo_misterio:'🔍', general:'🔔' };
-    list.innerHTML = data.map(n => {
-        const fecha = (() => { try { return new Date(n.fecha).toLocaleString('es',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e){return '';} })();
-        return `<div class="row-item px-4 py-3">
-            <div class="flex items-start gap-3">
-                <span class="text-xl flex-shrink-0">${tipoIcon[n.tipo]||'🔔'}</span>
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-sm font-bold text-white">${esc(n.titulo||'')}</span>
-                        <span style="font-size:11px;background:#21262d;padding:1px 7px;border-radius:10px;color:#79c0ff;">${esc(n.tipo||'')}</span>
-                        <span style="font-size:11px;color:#8b949e;">→ ${esc(n.idPublico||'TODOS')}</span>
-                    </div>
-                    <p style="font-size:13px;color:#9ca3af;margin-top:3px;">${esc(n.mensaje||'')}</p>
-                    <p style="font-size:11px;color:#6b7280;margin-top:2px;">${fecha}</p>
-                </div>
-            </div>
-        </div>`;
-    }).join('');
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// HISTORIAL CON SUB-TABS (respuestas + notificaciones)
-// ═══════════════════════════════════════════════════════════════════
-document.querySelectorAll('.tab-btn[data-htab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn[data-htab]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById('hist-resp-list').classList.toggle('hidden', btn.dataset.htab !== 'respuestas');
-        document.getElementById('hist-notif-list').classList.toggle('hidden', btn.dataset.htab !== 'notifs');
-    });
-});
-
 document.getElementById('hist-load-btn').addEventListener('click', loadHistory);
 document.getElementById('hist-user-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadHistory(); });
 
@@ -565,58 +506,106 @@ async function loadHistory() {
     if (!user)  { toast('Introduce un ID público', false); return; }
     if (!token) { toast('Introduce el token admin', false); return; }
 
-    const respList  = document.getElementById('hist-resp-list');
-    const notifList = document.getElementById('hist-notif-list');
-    respList.innerHTML = notifList.innerHTML = '<p style="color:#8b949e;font-size:13px;">⏳ Cargando...</p>';
+    const list = document.getElementById('hist-list');
+    list.innerHTML = '<p style="color:#8b949e;font-size:13px;">⏳ Cargando...</p>';
 
     try {
-        // Carga respuestas e historial de notificaciones en paralelo
-        const [respData, notifData] = await Promise.all([
-            fetch(`${APPS_SCRIPT_URL}?action=history&user=${encodeURIComponent(user)}&token=${encodeURIComponent(token)}`).then(r=>r.json()),
-            fetch(`${APPS_SCRIPT_URL}?action=notifs&user=${encodeURIComponent(user)}&token=${encodeURIComponent(token)}`).then(r=>r.json())
-        ]);
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=history&user=${encodeURIComponent(user)}&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (data.error) { list.innerHTML = '<p style="color:#f87171;font-size:13px;">Error: ' + esc(data.error) + '</p>'; return; }
+        if (!data.length) { list.innerHTML = '<p style="color:#8b949e;font-size:13px;">Sin respuestas registradas.</p>'; return; }
 
-        // Respuestas
-        if (respData.error) { respList.innerHTML = `<p style="color:#f87171;font-size:13px;">Error: ${esc(respData.error)}</p>`; }
-        else if (!respData.length) { respList.innerHTML = '<p style="color:#8b949e;font-size:13px;">Sin respuestas registradas.</p>'; }
-        else {
-            respList.innerHTML = respData.map(r => {
-                const fecha = (() => { try { return new Date(r.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric'}); } catch(e){return '';} })();
-                const estado = r.correcto ? '✅' : (r.comentario ? '❌' : '⏳');
-                return `<div style="background:#0d1117;border-radius:8px;padding:12px;margin-bottom:8px;">
-                    <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
-                        <span style="font-size:12px;font-weight:700;color:#79c0ff;">${esc(r.misterio||'?')}</span>
-                        <div class="flex items-center gap-2">
-                            <span style="font-size:11px;color:#6b7280;">${fecha}</span>
-                            <span>${estado}</span>
-                        </div>
+        list.innerHTML = data.map(r => {
+            const fecha = (() => { try { return new Date(r.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric'}); } catch(e){ return ''; }})();
+            const estado = r.correcto ? '✅ Correcta' : (r.comentario ? '❌ Incorrecta' : '⏳ Pendiente');
+            const hasReview = allResponses.find(x => x.row === r.row);
+            const clickAttr = r.row && hasReview ? `style="cursor:pointer;" onclick="openReview(${r.row})"` : '';
+            const hintClick = r.row && hasReview ? `<span style="font-size:10px;color:#388bfd;margin-left:4px;">Ver detalle →</span>` : '';
+            return `<div class="row-item" ${clickAttr} style="background:#0d1117;border-radius:8px;padding:12px;margin-bottom:8px;">
+                <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
+                    <div class="flex items-center gap-2">
+                        <span style="font-size:12px;font-weight:700;color:#79c0ff;">${esc(r.misterio || '?')}</span>
+                        ${hintClick}
                     </div>
-                    <p style="font-size:13px;color:#e6edf3;"><strong>Solución:</strong> ${esc(r.solucion||'—')}</p>
-                    ${r.explicacion?`<p style="font-size:12px;color:#8b949e;margin-top:3px;">${esc(r.explicacion)}</p>`:''}
-                    ${r.comentario?`<p style="font-size:12px;color:#a78bfa;margin-top:5px;">💬 ${esc(r.comentario)}</p>`:''}
-                </div>`;
-            }).join('');
-        }
-
-        // Notificaciones
-        const tipoIcon = { respuesta:'📬', anuncio:'📢', nuevo_misterio:'🔍', general:'🔔' };
-        if (notifData.error || !notifData.length) {
-            notifList.innerHTML = '<p style="color:#8b949e;font-size:13px;">Sin notificaciones para este usuario.</p>';
-        } else {
-            notifList.innerHTML = notifData.map(n => {
-                const fecha = (() => { try { return new Date(n.fecha).toLocaleString('es',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}); } catch(e){return '';} })();
-                return `<div style="background:#0d1117;border-radius:8px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;">
-                    <span style="font-size:18px;flex-shrink:0;">${tipoIcon[n.tipo]||'🔔'}</span>
-                    <div>
-                        <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(n.titulo||'')}</p>
-                        <p style="font-size:12px;color:#9ca3af;margin-top:2px;white-space:pre-wrap;">${esc(n.mensaje||'')}</p>
-                        <p style="font-size:11px;color:#6b7280;margin-top:4px;">${fecha}</p>
+                    <div class="flex items-center gap-2">
+                        <span style="font-size:11px;color:#6b7280;">${fecha}</span>
+                        <span style="font-size:11px;color:${r.correcto?'#4ade80':r.comentario?'#f87171':'#fb923c'}">${estado}</span>
                     </div>
-                </div>`;
-            }).join('');
-        }
-    } catch(e) { respList.innerHTML = notifList.innerHTML = '<p style="color:#f87171;font-size:13px;">Error de conexión</p>'; }
+                </div>
+                <p style="font-size:13px;color:#e6edf3;margin-bottom:4px;"><strong>Solución:</strong> ${esc(r.solucion || '—')}</p>
+                ${r.explicacion ? `<p style="font-size:12px;color:#8b949e;margin-bottom:4px;">${esc(r.explicacion)}</p>` : ''}
+                ${r.comentario ? `<p style="font-size:12px;color:#a78bfa;margin-top:4px;">💬 ${esc(r.comentario)}</p>` : ''}
+            </div>`;
+        }).join('');
+    } catch(e) { list.innerHTML = '<p style="color:#f87171;font-size:13px;">Error de conexión</p>'; }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// NOTIFICACIONES ENVIADAS
+// ═══════════════════════════════════════════════════════════════════
+let allNotifsSent = [];
+
+document.getElementById('load-notifs-sent-btn').addEventListener('click', loadNotifsSent);
+
+async function loadNotifsSent() {
+    const token    = document.getElementById('admin-token').value.trim();
+    const tipoFil  = document.getElementById('notif-sent-filter-tipo').value;
+    const userFil  = document.getElementById('notif-sent-filter-user').value.trim();
+    if (!token) { toast('Introduce el token admin', false); return; }
+
+    const list = document.getElementById('notifs-sent-list');
+    list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
+
+    try {
+        const params = new URLSearchParams({ action:'getNotifsSent', token });
+        if (tipoFil) params.set('tipo', tipoFil);
+        if (userFil) params.set('user', userFil);
+        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        allNotifsSent = data;
+        renderNotifsSent();
+        toast('📤 ' + data.length + ' notificaciones cargadas');
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+const NOTIF_ICONS = { respuesta:'📬', anuncio:'📢', nuevo_misterio:'🔍', general:'🔔' };
+
+function renderNotifsSent() {
+    const list = document.getElementById('notifs-sent-list');
+    document.getElementById('notifs-sent-count').textContent = allNotifsSent.length + ' notificación' + (allNotifsSent.length === 1 ? '' : 'es');
+
+    if (!allNotifsSent.length) {
+        list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin notificaciones con esos filtros</p>';
+        return;
+    }
+
+    list.innerHTML = allNotifsSent.map(n => {
+        const icon  = NOTIF_ICONS[n.tipo] || '🔔';
+        const fecha = (() => { try { return new Date(n.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e){ return ''; }})();
+        const destColor = n.user === 'TODOS' ? '#f59e0b' : '#79c0ff';
+        return `<div class="row-item px-4 py-3">
+            <div class="flex items-start justify-between gap-3 flex-wrap">
+                <div class="flex items-start gap-3 min-w-0">
+                    <span style="font-size:18px;flex-shrink:0;">${icon}</span>
+                    <div class="min-w-0">
+                        <p class="text-sm font-bold text-white">${esc(n.titulo || '')}</p>
+                        <p style="font-size:12px;color:#8b949e;margin-top:2px;white-space:pre-line;">${esc(n.mensaje || '')}</p>
+                        ${n.link ? `<a href="${esc(n.link)}" target="_blank" style="font-size:11px;color:#388bfd;">🔗 ${esc(n.link)}</a>` : ''}
+                    </div>
+                </div>
+                <div style="text-align:right;flex-shrink:0;">
+                    <p style="font-size:11px;color:${destColor};font-weight:700;">${n.user === 'TODOS' ? '📢 Todos' : esc(n.user)}</p>
+                    <p style="font-size:11px;color:#6b7280;">${fecha}</p>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+['notif-sent-filter-tipo'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', () => {});
+});
 
 // ═══════════════════════════════════════════════════════════════════
 // UTILIDADES
