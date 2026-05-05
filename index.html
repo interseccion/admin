@@ -59,6 +59,7 @@
     <button class="tab-btn" data-tab="notificaciones">🔔 Enviar notificación</button>
     <button class="tab-btn" data-tab="historial">📋 Historial usuario</button>
     <button class="tab-btn" data-tab="notifs-enviadas">📤 Notifs enviadas</button>
+    <button class="tab-btn" data-tab="feedback">💬 Feedback</button>
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
@@ -146,8 +147,26 @@
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
-<!-- TAB: NOTIFICACIONES ENVIADAS -->
+<!-- TAB: FEEDBACK -->
 <!-- ───────────────────────────────────────────────────────── -->
+<div id="tab-feedback" class="hidden">
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <select id="fb-filter-tipo" style="width:180px;">
+            <option value="">Todos los tipos</option>
+            <option value="sugerencia">💡 Sugerencia</option>
+            <option value="bug">🐛 Bug / Error</option>
+            <option value="elogio">❤️ Elogio</option>
+            <option value="otro">💬 Otro</option>
+        </select>
+        <button class="btn btn-blue" id="load-feedback-btn">🔄 Cargar</button>
+        <span style="font-size:12px;color:#8b949e;" id="feedback-count"></span>
+    </div>
+    <div class="card overflow-hidden">
+        <div id="feedback-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar" para ver el feedback recibido</p>
+        </div>
+    </div>
+</div>
 <div id="tab-notifs-enviadas" class="hidden">
     <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
         <select id="notif-sent-filter-tipo" style="width:180px;">
@@ -222,7 +241,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['respuestas','notificaciones','historial','notifs-enviadas'].forEach(t => {
+        ['respuestas','notificaciones','historial','notifs-enviadas','feedback'].forEach(t => {
             document.getElementById('tab-' + t).classList.toggle('hidden', t !== btn.dataset.tab);
         });
     });
@@ -605,6 +624,69 @@ function renderNotifsSent() {
 
 ['notif-sent-filter-tipo'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', () => {});
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// FEEDBACK
+// ═══════════════════════════════════════════════════════════════════
+const TIPO_LABELS = { sugerencia:'💡 Sugerencia', bug:'🐛 Bug / Error', elogio:'❤️ Elogio', otro:'💬 Otro', general:'💬 General' };
+const STAR_COLORS = ['','#ef4444','#f97316','#eab308','#84cc16','#22c55e'];
+
+document.getElementById('load-feedback-btn').addEventListener('click', async () => {
+    const token   = document.getElementById('admin-token').value.trim();
+    const tipoFil = document.getElementById('fb-filter-tipo').value;
+    if (!token) { toast('Introduce el token admin', false); return; }
+
+    const list = document.getElementById('feedback-list');
+    list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
+
+    try {
+        const params = new URLSearchParams({ action:'getFeedback', token });
+        if (tipoFil) params.set('tipo', tipoFil);
+        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+
+        document.getElementById('feedback-count').textContent = data.length + ' entrada' + (data.length === 1 ? '' : 's');
+
+        if (!data.length) {
+            list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin feedback con esos filtros 📭</p>';
+            return;
+        }
+
+        // Resumen de valoraciones
+        const ratings = data.filter(r => r.valoracion && parseInt(r.valoracion));
+        const avgRating = ratings.length ? (ratings.reduce((s, r) => s + parseInt(r.valoracion), 0) / ratings.length).toFixed(1) : null;
+        const tipoCounts = data.reduce((acc, r) => { acc[r.tipo || 'general'] = (acc[r.tipo || 'general'] || 0) + 1; return acc; }, {});
+
+        const summaryHTML = `<div style="background:#0d1117;padding:16px 20px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;border-bottom:1px solid #21262d;">
+            ${avgRating ? `<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:22px;color:#eab308;">★</span><span style="font-size:18px;font-weight:700;color:#e6edf3;">${avgRating}</span><span style="font-size:12px;color:#8b949e;">/ 5 (${ratings.length} votos)</span></div>` : ''}
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                ${Object.entries(tipoCounts).map(([t, n]) => `<span style="background:#21262d;border-radius:9999px;padding:3px 10px;font-size:12px;color:#8b949e;">${TIPO_LABELS[t] || t} <strong style="color:#e6edf3;">${n}</strong></span>`).join('')}
+            </div>
+        </div>`;
+
+        list.innerHTML = summaryHTML + data.map(r => {
+            const stars = r.valoracion ? parseInt(r.valoracion) : 0;
+            const starsHTML = stars ? `<span style="color:${STAR_COLORS[stars] || '#eab308'};font-size:13px;">${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</span>` : '';
+            const fecha = (() => { try { return new Date(r.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e){ return ''; }})();
+            return `<div class="row-item px-4 py-3">
+                <div class="flex items-start justify-between gap-3 flex-wrap mb-2">
+                    <div class="flex items-center gap-2">
+                        <span style="font-size:13px;background:#21262d;padding:2px 8px;border-radius:9999px;color:#8b949e;">${TIPO_LABELS[r.tipo] || r.tipo || '—'}</span>
+                        ${starsHTML}
+                    </div>
+                    <div style="text-align:right;">
+                        <p style="font-size:11px;color:#79c0ff;">${esc(r.user || 'anónimo')}</p>
+                        <p style="font-size:11px;color:#6b7280;">${fecha}</p>
+                    </div>
+                </div>
+                <p style="font-size:13px;color:#e6edf3;white-space:pre-line;">${esc(r.texto || '—')}</p>
+            </div>`;
+        }).join('');
+
+        toast('💬 ' + data.length + ' entradas de feedback cargadas');
+    } catch(e) { toast('Error de conexión', false); }
 });
 
 // ═══════════════════════════════════════════════════════════════════
