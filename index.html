@@ -227,6 +227,37 @@
 // CONFIGURACIÓN — cambia solo esta línea
 // ═══════════════════════════════════════════════════════════════════
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzWxNV_zyNIUveSDunEUXHCuHIkWmbtLiosFHEHwJYvpprn9_Rsg4OkLZ-pLjXiiO2EbA/exec';
+const GAMES_INDEX_PATH = 'games/index.json';
+
+// Mapa id → título de misterio (cargado al inicio)
+let mysteryTitleMap = {};
+
+async function loadMysteryTitles() {
+    try {
+        const indexRes = await fetch(`${GAMES_INDEX_PATH}?v=${Date.now()}`);
+        if (!indexRes.ok) return;
+        const files = await indexRes.json();
+        const results = await Promise.all(
+            files.map(f => fetch(`games/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
+        );
+        results.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
+    } catch(e) { console.warn('No se pudieron cargar títulos de misterios:', e); }
+}
+
+// Devuelve el título bonito, con el ID en tooltip; muestra ID si no se encontró título
+function mystTitle(id) {
+    if (!id) return '—';
+    const t = mysteryTitleMap[id];
+    return t ? `<span title="ID: ${esc(id)}" style="cursor:default;">${esc(t)}</span>`
+             : `<span style="color:#8b949e;font-size:11px;">${esc(id)}</span>`;
+}
+
+// Versión texto plano (para el <title> del modal, etc.)
+function mystTitlePlain(id) {
+    return id ? (mysteryTitleMap[id] || id) : '—';
+}
+
+loadMysteryTitles();
 
 // ═══════════════════════════════════════════════════════════════════
 // ESTADO
@@ -283,7 +314,7 @@ function populateMisterioFilter() {
     const sel = document.getElementById('filter-misterio');
     const ids = [...new Set(allResponses.map(r => r.misterio))].filter(Boolean).sort();
     sel.innerHTML = '<option value="">Todos los misterios</option>' +
-        ids.map(id => `<option value="${id}">${id}</option>`).join('');
+        ids.map(id => `<option value="${id}">${mysteryTitleMap[id] || id}</option>`).join('');
 }
 
 function getFilteredResponses() {
@@ -332,7 +363,7 @@ function renderResponses() {
                     ${badgeHtml}
                     <span class="text-sm font-bold text-white">${esc(r.nombre || r.idPublico || '?')}</span>
                     <span style="font-size:11px;color:#8b949e;">${esc(r.idPublico || '')}</span>
-                    <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#79c0ff;">${esc(r.misterio || '')}</span>
+                    <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#79c0ff;">${mystTitle(r.misterio)}</span>
                 </div>
                 <span style="font-size:11px;color:#6b7280;">${fecha}</span>
             </div>
@@ -352,7 +383,7 @@ function openReview(row) {
 
     const isMarked = r.correcto === true || (r.correcto === false && r.comentario);
 
-    document.getElementById('review-title').textContent = `Revisando: ${r.nombre || r.idPublico} — ${r.misterio}`;
+    document.getElementById('review-title').textContent = `Revisando: ${r.nombre || r.idPublico} — ${mystTitlePlain(r.misterio)}`;
     document.getElementById('review-comment').value = r.comentario || '';
 
     const fecha = (() => { try { return new Date(r.fecha).toLocaleString('es'); } catch(e) { return r.fecha || ''; } })();
@@ -366,8 +397,9 @@ function openReview(row) {
             </div>
             <div style="background:#0d1117;border-radius:8px;padding:12px;">
                 <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:4px;">Misterio</p>
-                <p class="text-sm text-white font-bold">${esc(r.misterio || '')}</p>
-                <p style="font-size:11px;color:#6b7280;">${fecha}</p>
+                <p class="text-sm text-white font-bold">${esc(mystTitlePlain(r.misterio))}</p>
+                <p style="font-size:10px;color:#484f58;margin-top:2px;">${esc(r.misterio || '')}</p>
+                <p style="font-size:11px;color:#6b7280;margin-top:2px;">${fecha}</p>
             </div>
         </div>
         ${isMarked ? `<div style="background:${r.correcto ? '#052e16' : '#450a0a'};border-radius:8px;padding:10px;display:flex;align-items:center;gap:8px;">
@@ -543,7 +575,8 @@ async function loadHistory() {
             return `<div class="row-item" ${clickAttr} style="background:#0d1117;border-radius:8px;padding:12px;margin-bottom:8px;">
                 <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
                     <div class="flex items-center gap-2">
-                        <span style="font-size:12px;font-weight:700;color:#79c0ff;">${esc(r.misterio || '?')}</span>
+                        <span style="font-size:12px;font-weight:700;color:#79c0ff;">${esc(mystTitlePlain(r.misterio) || '?')}</span>
+                        <span style="font-size:10px;color:#484f58;">${r.misterio && mysteryTitleMap[r.misterio] ? esc(r.misterio) : ''}</span>
                         ${hintClick}
                     </div>
                     <div class="flex items-center gap-2">
@@ -603,14 +636,24 @@ function renderNotifsSent() {
         const icon  = NOTIF_ICONS[n.tipo] || '🔔';
         const fecha = (() => { try { return new Date(n.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e){ return ''; }})();
         const destColor = n.user === 'TODOS' ? '#f59e0b' : '#79c0ff';
+        // Resolver #mystery=ID en título y mensaje
+        const mystId = n.link?.match(/^#mystery=(.+)$/)?.[1];
+        const titulo  = mystId ? esc(n.titulo  || '').replace(esc(mystId), esc(mystTitlePlain(mystId))) : esc(n.titulo  || '');
+        const mensaje = mystId ? esc(n.mensaje || '').replace(esc(mystId), esc(mystTitlePlain(mystId))) : esc(n.mensaje || '');
+        // Mostrar enlace: si es interno muestra el nombre del misterio; si es externo muestra la URL
+        const linkHTML = (() => {
+            if (!n.link) return '';
+            if (mystId) return `<span style="font-size:11px;color:#a78bfa;">🔍 ${esc(mystTitlePlain(mystId))} <span style="color:#484f58;">(${esc(mystId)})</span></span>`;
+            return `<a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#388bfd;word-break:break-all;">🔗 ${esc(n.link)}</a>`;
+        })();
         return `<div class="row-item px-4 py-3">
             <div class="flex items-start justify-between gap-3 flex-wrap">
                 <div class="flex items-start gap-3 min-w-0">
                     <span style="font-size:18px;flex-shrink:0;">${icon}</span>
                     <div class="min-w-0">
-                        <p class="text-sm font-bold text-white">${esc(n.titulo || '')}</p>
-                        <p style="font-size:12px;color:#8b949e;margin-top:2px;white-space:pre-line;">${esc(n.mensaje || '')}</p>
-                        ${n.link ? `<a href="${esc(n.link)}" target="_blank" style="font-size:11px;color:#388bfd;">🔗 ${esc(n.link)}</a>` : ''}
+                        <p class="text-sm font-bold text-white">${titulo}</p>
+                        <p style="font-size:12px;color:#8b949e;margin-top:2px;white-space:pre-line;">${mensaje}</p>
+                        ${linkHTML ? `<div style="margin-top:4px;">${linkHTML}</div>` : ''}
                     </div>
                 </div>
                 <div style="text-align:right;flex-shrink:0;">
