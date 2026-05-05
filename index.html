@@ -34,6 +34,11 @@
         .modal-box { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 24px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
         .notif-tipo-btn { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #30363d; background: #21262d; color: #8b949e; transition: all 0.15s; }
         .notif-tipo-btn.sel { background: #1f6feb; color: white; border-color: #388bfd; }
+        .upm-tab-btn { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; background: transparent; color: #8b949e; transition: all 0.15s; }
+        .upm-tab-btn.active { background: #21262d; color: #e6edf3; border-color: #30363d; }
+        .upm-tab-btn:not(.active):hover { color: #e6edf3; }
+        .stat-card { background: #0d1117; border-radius: 8px; padding: 12px; text-align: center; }
+        .clickable-row { cursor: pointer; } .clickable-row:hover { background: #1c2128 !important; }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-6">
@@ -60,6 +65,7 @@
     <button class="tab-btn" data-tab="historial">📋 Historial usuario</button>
     <button class="tab-btn" data-tab="notifs-enviadas">📤 Notifs enviadas</button>
     <button class="tab-btn" data-tab="feedback">💬 Feedback</button>
+    <button class="tab-btn" data-tab="usuarios">👥 Usuarios</button>
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
@@ -220,6 +226,105 @@
     </div>
 </div>
 
+<!-- ───────────────────────────────────────────────────────── -->
+<!-- TAB: USUARIOS -->
+<!-- ───────────────────────────────────────────────────────── -->
+<div id="tab-usuarios" class="hidden">
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <input type="text" id="users-search" placeholder="Buscar por nombre o ID..." style="min-width:220px;flex:1;">
+        <button class="btn btn-blue" id="load-users-btn">🔄 Cargar usuarios</button>
+        <span style="font-size:12px;color:#8b949e;" id="users-count"></span>
+    </div>
+    <div class="card overflow-hidden">
+        <div id="users-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar usuarios" para ver la lista</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: detalle de notificación enviada -->
+<div id="notif-sent-modal" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:480px;">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <span id="nsm-icon" class="text-xl"></span>
+                <span id="nsm-title"></span>
+            </h3>
+            <button onclick="closeNotifSentModal()" class="text-gray-400 hover:text-white text-xl">×</button>
+        </div>
+        <div class="space-y-3 mb-5">
+            <div style="background:#0d1117;border-radius:8px;padding:12px;display:flex;gap:16px;flex-wrap:wrap;">
+                <div><p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:2px;">Para</p>
+                    <p id="nsm-dest" class="text-sm font-bold text-yellow-400"></p></div>
+                <div><p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:2px;">Tipo</p>
+                    <p id="nsm-tipo" class="text-sm text-gray-300"></p></div>
+                <div><p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:2px;">Fecha</p>
+                    <p id="nsm-fecha" class="text-sm text-gray-300"></p></div>
+            </div>
+            <div style="background:#0d1117;border-radius:8px;padding:12px;">
+                <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Mensaje</p>
+                <p id="nsm-msg" class="text-sm text-gray-200" style="white-space:pre-line;max-height:160px;overflow-y:auto;"></p>
+            </div>
+            <div id="nsm-link-row" class="hidden" style="font-size:12px;"></div>
+        </div>
+        <div class="flex gap-3 justify-end">
+            <button class="btn btn-gray" onclick="closeNotifSentModal()">Cerrar</button>
+            <button class="btn btn-blue" id="nsm-reply-btn">↩️ Responder a este usuario</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: perfil de usuario -->
+<div id="user-profile-modal" class="modal-overlay hidden" style="align-items:flex-start;overflow-y:auto;padding:24px 8px;">
+    <div class="modal-box" style="max-width:600px;width:100%;margin:auto;max-height:none;">
+        <!-- Cabecera -->
+        <div class="flex items-start justify-between mb-5">
+            <div>
+                <h3 id="upm-name" class="text-xl font-bold text-white mb-1"></h3>
+                <p id="upm-id" class="text-xs text-gray-500 font-mono"></p>
+            </div>
+            <button onclick="document.getElementById('user-profile-modal').classList.add('hidden')" class="text-gray-400 hover:text-white text-xl flex-shrink-0 ml-4">×</button>
+        </div>
+        <!-- Stats rápidos -->
+        <div class="grid grid-cols-3 gap-3 mb-5" id="upm-stats"></div>
+        <!-- Sub-tabs -->
+        <div class="flex gap-2 mb-4 flex-wrap border-b border-gray-700 pb-3">
+            <button class="upm-tab-btn active" data-utab="misterios">🔍 Misterios</button>
+            <button class="upm-tab-btn" data-utab="historial">📋 Historial</button>
+            <button class="upm-tab-btn" data-utab="notifs">🔔 Notificaciones</button>
+            <button class="upm-tab-btn" data-utab="feedback">💬 Feedback</button>
+            <button class="upm-tab-btn" data-utab="ajustar">⚙️ Ajustar puntos</button>
+        </div>
+        <!-- Sub-tab contents -->
+        <div id="upm-misterios" class="upm-tab-content space-y-2"></div>
+        <div id="upm-historial" class="upm-tab-content hidden space-y-2"></div>
+        <div id="upm-notifs"    class="upm-tab-content hidden space-y-2"></div>
+        <div id="upm-feedback"  class="upm-tab-content hidden space-y-2"></div>
+        <div id="upm-ajustar"   class="upm-tab-content hidden">
+            <div class="card p-5 space-y-4 border-0" style="background:#0d1117;">
+                <p style="font-size:13px;color:#8b949e;">Añade o resta puntos a este usuario. Se guarda en una columna "ajuste_manual" en PRINCIPAL. El total se recalcula solo.</p>
+                <div class="flex gap-3 items-end flex-wrap">
+                    <div style="flex:1;min-width:140px;">
+                        <label style="font-size:11px;color:#8b949e;text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Concepto</label>
+                        <input type="text" id="adj-concept" value="ajuste_manual" placeholder="Columna a editar">
+                    </div>
+                    <div style="width:100px;">
+                        <label style="font-size:11px;color:#8b949e;text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Δ Puntos</label>
+                        <input type="number" id="adj-delta" value="0" step="0.5">
+                    </div>
+                    <button class="btn btn-blue" id="adj-submit-btn">Aplicar</button>
+                </div>
+                <p id="adj-result" style="font-size:12px;color:#4ade80;" class="hidden"></p>
+            </div>
+        </div>
+        <!-- Footer -->
+        <div class="flex gap-3 mt-5 justify-end border-t border-gray-700 pt-4">
+            <button class="btn btn-gray" onclick="document.getElementById('user-profile-modal').classList.add('hidden')">Cerrar</button>
+            <button class="btn btn-blue" id="upm-send-notif-btn">🔔 Enviar notificación</button>
+        </div>
+    </div>
+</div>
+
 <div id="toast" class="toast hidden"></div>
 
 <script>
@@ -272,7 +377,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['respuestas','notificaciones','historial','notifs-enviadas','feedback'].forEach(t => {
+        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios'].forEach(t => {
             document.getElementById('tab-' + t).classList.toggle('hidden', t !== btn.dataset.tab);
         });
     });
@@ -646,13 +751,13 @@ function renderNotifsSent() {
             if (mystId) return `<span style="font-size:11px;color:#a78bfa;">🔍 ${esc(mystTitlePlain(mystId))} <span style="color:#484f58;">(${esc(mystId)})</span></span>`;
             return `<a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#388bfd;word-break:break-all;">🔗 ${esc(n.link)}</a>`;
         })();
-        return `<div class="row-item px-4 py-3">
+        return `<div class="row-item clickable-row px-4 py-3" onclick='openNotifSentModal(${JSON.stringify({...n, _titulo: titulo, _mensaje: mensaje}).replace(/'/g,"&#39;")})'>
             <div class="flex items-start justify-between gap-3 flex-wrap">
                 <div class="flex items-start gap-3 min-w-0">
                     <span style="font-size:18px;flex-shrink:0;">${icon}</span>
                     <div class="min-w-0">
                         <p class="text-sm font-bold text-white">${titulo}</p>
-                        <p style="font-size:12px;color:#8b949e;margin-top:2px;white-space:pre-line;">${mensaje}</p>
+                        <p style="font-size:12px;color:#8b949e;margin-top:2px;white-space:pre-line;max-height:40px;overflow:hidden;">${mensaje}</p>
                         ${linkHTML ? `<div style="margin-top:4px;">${linkHTML}</div>` : ''}
                     </div>
                 </div>
@@ -668,6 +773,64 @@ function renderNotifsSent() {
 ['notif-sent-filter-tipo'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', () => {});
 });
+
+// ─── NOTIF SENT DETAIL MODAL ─────────────────────────────────────────────────
+let _currentNotifForReply = null;
+
+function openNotifSentModal(n) {
+    _currentNotifForReply = n;
+    const ICONS = { respuesta:'📬', anuncio:'📢', nuevo_misterio:'🔍', general:'🔔' };
+    document.getElementById('nsm-icon').textContent  = ICONS[n.tipo] || '🔔';
+    document.getElementById('nsm-title').textContent = n._titulo || n.titulo || '';
+    document.getElementById('nsm-dest').textContent  = n.user === 'TODOS' ? '📢 Todos' : (n.user || '—');
+    document.getElementById('nsm-tipo').textContent  = n.tipo || '—';
+    const fecha = (() => { try { return new Date(n.fecha).toLocaleString('es'); } catch(e){ return n.fecha || ''; } })();
+    document.getElementById('nsm-fecha').textContent = fecha;
+    document.getElementById('nsm-msg').textContent   = n._mensaje || n.mensaje || '';
+    const linkRow = document.getElementById('nsm-link-row');
+    if (n.link) {
+        const mystId = n.link?.match(/^#mystery=(.+)$/)?.[1];
+        linkRow.innerHTML = mystId
+            ? `<span style="color:#a78bfa;">🔍 ${esc(mystTitlePlain(mystId))}</span>`
+            : `<a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer" style="color:#388bfd;word-break:break-all;">🔗 ${esc(n.link)}</a>`;
+        linkRow.classList.remove('hidden');
+    } else { linkRow.classList.add('hidden'); }
+
+    // Reply button: sólo si tiene usuario concreto
+    const replyBtn = document.getElementById('nsm-reply-btn');
+    if (n.user && n.user !== 'TODOS') {
+        replyBtn.classList.remove('hidden');
+        replyBtn.onclick = () => {
+            closeNotifSentModal();
+            prefillSendNotif(n.user);
+        };
+    } else { replyBtn.classList.add('hidden'); }
+
+    document.getElementById('notif-sent-modal').classList.remove('hidden');
+}
+
+function closeNotifSentModal() {
+    document.getElementById('notif-sent-modal').classList.add('hidden');
+}
+
+document.getElementById('notif-sent-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('notif-sent-modal')) closeNotifSentModal();
+});
+
+// Pre-rellena el formulario de envío de notificación
+function prefillSendNotif(userId, titulo, mensaje) {
+    // Cambiar a la pestaña de notificaciones
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    const notifTab = document.querySelector('[data-tab="notificaciones"]');
+    notifTab?.classList.add('active');
+    ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== 'notificaciones');
+    });
+    if (userId) document.getElementById('notif-user').value = userId;
+    if (titulo) document.getElementById('notif-titulo').value = titulo;
+    if (mensaje) document.getElementById('notif-mensaje').value = mensaje;
+    document.getElementById('notif-titulo').focus();
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // FEEDBACK
@@ -697,9 +860,8 @@ document.getElementById('load-feedback-btn').addEventListener('click', async () 
             return;
         }
 
-        // Resumen de valoraciones
-        const ratings = data.filter(r => r.valoracion && parseInt(r.valoracion));
-        const avgRating = ratings.length ? (ratings.reduce((s, r) => s + parseInt(r.valoracion), 0) / ratings.length).toFixed(1) : null;
+        const ratings    = data.filter(r => r.valoracion && parseInt(r.valoracion));
+        const avgRating  = ratings.length ? (ratings.reduce((s, r) => s + parseInt(r.valoracion), 0) / ratings.length).toFixed(1) : null;
         const tipoCounts = data.reduce((acc, r) => { acc[r.tipo || 'general'] = (acc[r.tipo || 'general'] || 0) + 1; return acc; }, {});
 
         const summaryHTML = `<div style="background:#0d1117;padding:16px 20px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;border-bottom:1px solid #21262d;">
@@ -710,26 +872,286 @@ document.getElementById('load-feedback-btn').addEventListener('click', async () 
         </div>`;
 
         list.innerHTML = summaryHTML + data.map(r => {
-            const stars = r.valoracion ? parseInt(r.valoracion) : 0;
+            const stars    = r.valoracion ? parseInt(r.valoracion) : 0;
             const starsHTML = stars ? `<span style="color:${STAR_COLORS[stars] || '#eab308'};font-size:13px;">${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</span>` : '';
-            const fecha = (() => { try { return new Date(r.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e){ return ''; }})();
-            return `<div class="row-item px-4 py-3">
+            const fecha    = (() => { try { return new Date(r.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e){ return ''; }})();
+            const canReply = r.user && r.user !== 'anónimo';
+            return `<div class="row-item clickable-row px-4 py-3" onclick="openFeedbackDetail(${JSON.stringify(r).replace(/"/g,'&quot;')})">
                 <div class="flex items-start justify-between gap-3 flex-wrap mb-2">
                     <div class="flex items-center gap-2">
                         <span style="font-size:13px;background:#21262d;padding:2px 8px;border-radius:9999px;color:#8b949e;">${TIPO_LABELS[r.tipo] || r.tipo || '—'}</span>
                         ${starsHTML}
                     </div>
                     <div style="text-align:right;">
-                        <p style="font-size:11px;color:#79c0ff;">${esc(r.user || 'anónimo')}</p>
+                        <p style="font-size:11px;color:#79c0ff;${canReply?'cursor:pointer;text-decoration:underline;':''}" ${canReply ? `onclick="event.stopPropagation();prefillSendNotif('${esc(r.user)}')"` : ''}>${esc(r.user || 'anónimo')}</p>
                         <p style="font-size:11px;color:#6b7280;">${fecha}</p>
                     </div>
                 </div>
-                <p style="font-size:13px;color:#e6edf3;white-space:pre-line;">${esc(r.texto || '—')}</p>
+                <p style="font-size:13px;color:#e6edf3;white-space:pre-line;max-height:48px;overflow:hidden;">${esc(r.texto || '—')}</p>
             </div>`;
         }).join('');
 
         toast('💬 ' + data.length + ' entradas de feedback cargadas');
     } catch(e) { toast('Error de conexión', false); }
+});
+
+// ─── FEEDBACK DETAIL POPOVER (inline expand) ────────────────────────────────
+let _fbDetailOpen = null;
+function openFeedbackDetail(r) {
+    // Reutiliza el modal de notif-sent para mostrar el feedback en detalle
+    const TIPO_ICONS = { sugerencia:'💡', bug:'🐛', elogio:'❤️', otro:'💬', general:'💬' };
+    _currentNotifForReply = null;
+    document.getElementById('nsm-icon').textContent  = TIPO_ICONS[r.tipo] || '💬';
+    document.getElementById('nsm-title').textContent = TIPO_LABELS[r.tipo] || r.tipo || 'Feedback';
+    document.getElementById('nsm-dest').textContent  = r.user || 'anónimo';
+    document.getElementById('nsm-tipo').textContent  = r.valoracion ? '★'.repeat(parseInt(r.valoracion)) + ' ' + r.valoracion + '/5' : '—';
+    const fecha = (() => { try { return new Date(r.fecha).toLocaleString('es'); } catch(e){ return ''; } })();
+    document.getElementById('nsm-fecha').textContent = fecha;
+    document.getElementById('nsm-msg').textContent   = r.texto || '';
+    document.getElementById('nsm-link-row').classList.add('hidden');
+
+    const replyBtn = document.getElementById('nsm-reply-btn');
+    if (r.user && r.user !== 'anónimo') {
+        replyBtn.classList.remove('hidden');
+        replyBtn.textContent = '↩️ Responder a este usuario';
+        replyBtn.onclick = () => { closeNotifSentModal(); prefillSendNotif(r.user); };
+    } else { replyBtn.classList.add('hidden'); }
+
+    document.getElementById('notif-sent-modal').classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// USUARIOS
+// ═══════════════════════════════════════════════════════════════════
+let allUsers = [];
+let _currentUserProfile = null;
+
+document.getElementById('load-users-btn').addEventListener('click', loadUsers);
+document.getElementById('users-search').addEventListener('input', renderUsersList);
+
+async function loadUsers() {
+    const token = document.getElementById('admin-token').value.trim();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    const list = document.getElementById('users-list');
+    list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getUsers&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        allUsers = data;
+        renderUsersList();
+        toast('👥 ' + data.length + ' usuarios cargados');
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+function renderUsersList() {
+    const list   = document.getElementById('users-list');
+    const search = document.getElementById('users-search').value.toLowerCase().trim();
+    const users  = search
+        ? allUsers.filter(u => u.nombre?.toLowerCase().includes(search) || u.idPublico?.toLowerCase().includes(search))
+        : allUsers;
+
+    document.getElementById('users-count').textContent = users.length + ' usuario' + (users.length === 1 ? '' : 's');
+
+    if (!users.length) {
+        list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin usuarios con esa búsqueda</p>';
+        return;
+    }
+
+    // Cabecera tabla
+    const header = `<div style="display:grid;grid-template-columns:28px 1fr 90px 80px 80px;gap:8px;padding:10px 16px;background:#0d1117;font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #21262d;">
+        <span>#</span><span>Usuario</span><span style="text-align:right;">Puntos</span><span style="text-align:right;">Misterios</span><span></span>
+    </div>`;
+
+    list.innerHTML = header + users.map((u, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+        return `<div class="row-item clickable-row" style="display:grid;grid-template-columns:28px 1fr 90px 80px 80px;gap:8px;padding:10px 16px;align-items:center;" onclick='openUserProfile(${JSON.stringify(u).replace(/'/g,"&#39;")})'>
+            <span style="font-size:12px;color:#484f58;">${medal || (i+1)}</span>
+            <div class="min-w-0">
+                <p style="font-size:13px;font-weight:700;color:#e6edf3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(u.nombre || '?')}</p>
+                <p style="font-size:10px;color:#8b949e;font-family:monospace;">${esc(u.idPublico || '')}</p>
+            </div>
+            <p style="font-size:14px;font-weight:700;color:#f0e68c;text-align:right;">${u.total ?? 0}</p>
+            <p style="font-size:12px;color:#8b949e;text-align:right;">${u.misteriosSueltos ?? 0} 🔍</p>
+            <div style="text-align:right;"><button class="btn btn-gray" style="padding:4px 10px;font-size:11px;" onclick="event.stopPropagation();prefillSendNotif('${esc(u.idPublico)}')">✉️</button></div>
+        </div>`;
+    }).join('');
+}
+
+// ─── PERFIL DE USUARIO ───────────────────────────────────────────────────────
+
+async function openUserProfile(u) {
+    _currentUserProfile = u;
+    const modal = document.getElementById('user-profile-modal');
+    modal.classList.remove('hidden');
+
+    document.getElementById('upm-name').textContent = u.nombre || '?';
+    document.getElementById('upm-id').textContent   = u.idPublico || '';
+
+    // Stats rápidos
+    document.getElementById('upm-stats').innerHTML = `
+        <div class="stat-card"><p style="font-size:24px;font-weight:900;color:#f0e68c;">${u.total ?? 0}</p><p style="font-size:11px;color:#8b949e;margin-top:2px;">Puntos totales</p></div>
+        <div class="stat-card"><p style="font-size:24px;font-weight:900;color:#79c0ff;">${u.misteriosSueltos ?? 0}</p><p style="font-size:11px;color:#8b949e;margin-top:2px;">Misterios resueltos</p></div>
+        <div class="stat-card"><p style="font-size:24px;font-weight:900;color:#34d399;">—</p><p style="font-size:11px;color:#8b949e;margin-top:2px;">Cargando historial...</p></div>`;
+
+    // Reset sub-tabs
+    document.querySelectorAll('.upm-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.upm-tab-btn[data-utab="misterios"]').classList.add('active');
+    document.querySelectorAll('.upm-tab-content').forEach(c => c.classList.add('hidden'));
+    document.getElementById('upm-misterios').classList.remove('hidden');
+
+    // Tab switcher
+    document.querySelectorAll('.upm-tab-btn').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.upm-tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.querySelectorAll('.upm-tab-content').forEach(c => c.classList.add('hidden'));
+            document.getElementById('upm-' + btn.dataset.utab).classList.remove('hidden');
+        };
+    });
+
+    // Misterios desde datos cacheados (sin llamada extra)
+    renderUpmMisterios(u.misterios || []);
+
+    // Ajustar puntos
+    document.getElementById('adj-concept').value = 'ajuste_manual';
+    document.getElementById('adj-delta').value   = '0';
+    document.getElementById('adj-result').classList.add('hidden');
+    document.getElementById('adj-submit-btn').onclick = () => applyPointAdjust(u.idPublico);
+
+    // Send notif shortcut
+    document.getElementById('upm-send-notif-btn').onclick = () => {
+        modal.classList.add('hidden');
+        prefillSendNotif(u.idPublico);
+    };
+
+    // Cargar detalle completo en paralelo
+    loadUserDetail(u.idPublico);
+}
+
+function renderUpmMisterios(misterios) {
+    const el = document.getElementById('upm-misterios');
+    if (!misterios.length) { el.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:32px;">Sin misterios resueltos aún.</p>'; return; }
+    // Ordenar por puntos desc
+    const sorted = [...misterios].sort((a, b) => b.puntos - a.puntos);
+    el.innerHTML = sorted.map(m => `
+        <div class="row-item" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;gap:12px;">
+            <div class="min-w-0">
+                <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(mystTitlePlain(m.id))}</p>
+                <p style="font-size:10px;color:#484f58;font-family:monospace;">${esc(m.id)}</p>
+            </div>
+            <span style="font-size:14px;font-weight:700;color:#f0e68c;flex-shrink:0;">${m.puntos} pts</span>
+        </div>`).join('');
+}
+
+async function loadUserDetail(idPublico) {
+    const token = document.getElementById('admin-token').value.trim();
+    if (!token) return;
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getUserDetail&token=${encodeURIComponent(token)}&idPublico=${encodeURIComponent(idPublico)}`);
+        const d    = await res.json();
+        if (d.error) { toast('Error cargando detalle: ' + d.error, false); return; }
+
+        // Actualizar stat de respuestas totales
+        document.getElementById('upm-stats').querySelector('.stat-card:last-child p:first-child').textContent = d.historia?.length ?? 0;
+        document.getElementById('upm-stats').querySelector('.stat-card:last-child p:last-child').textContent  = 'Intentos totales';
+
+        // Historial
+        const histEl = document.getElementById('upm-historial');
+        if (!d.historia?.length) {
+            histEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:32px;">Sin historial de respuestas.</p>';
+        } else {
+            histEl.innerHTML = d.historia.map(r => {
+                const fecha = (() => { try { return new Date(r.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric'}); } catch(e){ return ''; }})();
+                const estado = r.correcto ? '✅' : (r.comentario ? '❌' : '⏳');
+                const hasReview = allResponses.find(x => x.row === r.row);
+                const clickAttr = r.row && hasReview ? `style="cursor:pointer;" onclick="openReview(${r.row})"` : '';
+                return `<div class="row-item" ${clickAttr} style="padding:10px 14px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                        <div><p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(mystTitlePlain(r.misterio))}</p>
+                            <p style="font-size:12px;color:#8b949e;">${esc(r.solucion || '—')}</p></div>
+                        <div style="text-align:right;flex-shrink:0;">
+                            <p style="font-size:18px;">${estado}</p>
+                            <p style="font-size:10px;color:#6b7280;">${fecha}</p>
+                        </div>
+                    </div>
+                    ${r.comentario ? `<p style="font-size:11px;color:#a78bfa;margin-top:6px;">💬 ${esc(r.comentario)}</p>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        // Notificaciones
+        const notifEl = document.getElementById('upm-notifs');
+        if (!d.notifs?.length) {
+            notifEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:32px;">Sin notificaciones.</p>';
+        } else {
+            const ICONS = { respuesta:'📬', anuncio:'📢', nuevo_misterio:'🔍', general:'🔔' };
+            notifEl.innerHTML = d.notifs.map(n => {
+                const mystId = n.link?.match(/^#mystery=(.+)$/)?.[1];
+                const titulo  = mystId ? esc(n.titulo||'').replace(esc(mystId), esc(mystTitlePlain(mystId))) : esc(n.titulo||'');
+                const fecha = (() => { try { return new Date(n.fecha).toLocaleDateString('es',{day:'numeric',month:'short'}); } catch(e){ return ''; }})();
+                const isGlobal = (n.user === 'TODOS');
+                return `<div class="row-item clickable-row" style="padding:10px 14px;display:flex;gap:10px;align-items:flex-start;" onclick='openNotifSentModal(${JSON.stringify(n).replace(/'/g,"&#39;")})'>
+                    <span style="font-size:16px;flex-shrink:0;">${ICONS[n.tipo]||'🔔'}</span>
+                    <div class="flex-1 min-w-0">
+                        <p style="font-size:12px;font-weight:700;color:#e6edf3;">${titulo} ${isGlobal ? '<span style="font-size:10px;color:#f59e0b;background:#451a03;padding:1px 5px;border-radius:4px;">global</span>' : ''}</p>
+                        <p style="font-size:11px;color:#8b949e;max-height:32px;overflow:hidden;">${esc(n.mensaje||'')}</p>
+                    </div>
+                    <p style="font-size:10px;color:#6b7280;flex-shrink:0;">${fecha}</p>
+                </div>`;
+            }).join('');
+        }
+
+        // Feedback
+        const fbEl = document.getElementById('upm-feedback');
+        if (!d.feedback?.length) {
+            fbEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:32px;">Sin feedback enviado.</p>';
+        } else {
+            fbEl.innerHTML = d.feedback.map(r => {
+                const stars = parseInt(r.valoracion) || 0;
+                const starsHTML = stars ? `<span style="color:#eab308;">${'★'.repeat(stars)}</span>` : '';
+                const fecha = (() => { try { return new Date(r.fecha).toLocaleDateString('es',{day:'numeric',month:'short'}); } catch(e){ return ''; }})();
+                return `<div class="row-item clickable-row" style="padding:10px 14px;" onclick='openFeedbackDetail(${JSON.stringify(r).replace(/'/g,"&#39;")})'>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
+                        <span style="font-size:12px;background:#21262d;padding:2px 8px;border-radius:12px;color:#8b949e;">${TIPO_LABELS[r.tipo]||r.tipo||'—'}</span>
+                        <div style="display:flex;align-items:center;gap:6px;">${starsHTML}<p style="font-size:10px;color:#6b7280;">${fecha}</p></div>
+                    </div>
+                    <p style="font-size:12px;color:#e6edf3;max-height:40px;overflow:hidden;">${esc(r.texto||'—')}</p>
+                </div>`;
+            }).join('');
+        }
+
+    } catch(e) { console.warn('Error cargando detalle usuario:', e); }
+}
+
+async function applyPointAdjust(idPublico) {
+    const token   = document.getElementById('admin-token').value.trim();
+    const concept = document.getElementById('adj-concept').value.trim() || 'ajuste_manual';
+    const delta   = parseFloat(document.getElementById('adj-delta').value) || 0;
+    if (!delta) { toast('El delta es 0, nada que cambiar', false); return; }
+    const btn = document.getElementById('adj-submit-btn');
+    btn.disabled = true; btn.textContent = '⏳...';
+    try {
+        const params = new URLSearchParams({ action:'adjustPoints', token, idPublico, mysteryId: concept, delta });
+        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); }
+        else {
+            const result = document.getElementById('adj-result');
+            result.textContent = `✅ Aplicado. Nuevo valor en "${concept}": ${data.newVal}`;
+            result.classList.remove('hidden');
+            toast('⚙️ Puntos ajustados correctamente');
+            // Actualizar cache local
+            const idx = allUsers.findIndex(u => u.idPublico === idPublico);
+            if (idx >= 0) { allUsers[idx].total = (allUsers[idx].total || 0) + delta; }
+        }
+    } catch(e) { toast('Error de conexión', false); }
+    btn.disabled = false; btn.textContent = 'Aplicar';
+}
+
+document.getElementById('user-profile-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('user-profile-modal'))
+        document.getElementById('user-profile-modal').classList.add('hidden');
 });
 
 // ═══════════════════════════════════════════════════════════════════
