@@ -55,6 +55,7 @@
             <input type="password" id="admin-token" placeholder="Tu ID privado completo" style="width:220px;" class="text-xs">
         </div>
         <button class="btn btn-blue" id="load-btn">🔄 Cargar respuestas</button>
+        <button class="btn btn-gray" id="csv-export-btn" title="Exportar respuestas visibles a CSV" style="font-size:12px;">⬇️ CSV</button>
     </div>
 </header>
 
@@ -66,6 +67,7 @@
     <button class="tab-btn" data-tab="notifs-enviadas">📤 Notifs enviadas</button>
     <button class="tab-btn" data-tab="feedback">💬 Feedback</button>
     <button class="tab-btn" data-tab="usuarios">👥 Usuarios</button>
+    <button class="tab-btn" data-tab="misterios">🔍 Misterios</button>
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
@@ -99,40 +101,67 @@
 <!-- TAB: NOTIFICACIONES -->
 <!-- ───────────────────────────────────────────────────────── -->
 <div id="tab-notificaciones" class="hidden">
-    <div class="card p-6 max-w-xl">
-        <h2 class="text-lg font-bold text-white mb-5">Enviar notificación manual</h2>
-        <div class="space-y-4">
-            <div>
-                <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Destinatario</label>
-                <div class="flex gap-2">
-                    <input type="text" id="notif-user" placeholder='ID público (ej: pata#guay) o dejar vacío para "TODOS"'>
-                    <button class="btn btn-gray" style="white-space:nowrap;flex-shrink:0;" onclick="document.getElementById('notif-user').value=''">📢 Todos</button>
+    <div class="flex gap-4 flex-wrap items-start">
+        <!-- Formulario de envío -->
+        <div class="card p-6" style="flex:1;min-width:280px;max-width:480px;">
+            <h2 class="text-lg font-bold text-white mb-5">Enviar notificación manual</h2>
+            <div class="space-y-4">
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Destinatario</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="notif-user" placeholder='ID público o vacío para "TODOS"'>
+                        <button class="btn btn-gray" style="white-space:nowrap;flex-shrink:0;" onclick="document.getElementById('notif-user').value=''">📢 Todos</button>
+                    </div>
+                    <div id="notif-group-selector" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+                        <span style="font-size:11px;color:#8b949e;align-self:center;">Grupos:</span>
+                        <span id="notif-groups-pills" style="display:contents;"></span>
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Tipo</label>
+                    <div class="flex gap-2 flex-wrap" id="notif-tipo-btns">
+                        <button class="notif-tipo-btn sel" data-tipo="general">🔔 General</button>
+                        <button class="notif-tipo-btn" data-tipo="nuevo_misterio">🔍 Nuevo misterio</button>
+                        <button class="notif-tipo-btn" data-tipo="anuncio">📢 Anuncio</button>
+                        <button class="notif-tipo-btn" data-tipo="respuesta">📬 Respuesta</button>
+                    </div>
+                    <input type="hidden" id="notif-tipo" value="general">
+                </div>
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Título</label>
+                    <input type="text" id="notif-titulo" placeholder="Título de la notificación">
+                </div>
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Mensaje</label>
+                    <textarea id="notif-mensaje" rows="3" placeholder="Cuerpo de la notificación..."></textarea>
+                </div>
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Enlace (opcional — puede ser https://... o #mystery=ID)</label>
+                    <input type="text" id="notif-link" placeholder="https://es.wikipedia.org/... o #mystery=mi_misterio">
+                    <p id="notif-link-preview" style="font-size:11px;color:#8b949e;margin-top:4px;"></p>
+                </div>
+                <div class="flex justify-end">
+                    <button class="btn btn-blue" id="send-notif-btn">🚀 Enviar notificación</button>
                 </div>
             </div>
-            <div>
-                <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Tipo</label>
-                <div class="flex gap-2 flex-wrap" id="notif-tipo-btns">
-                    <button class="notif-tipo-btn sel" data-tipo="general">🔔 General</button>
-                    <button class="notif-tipo-btn" data-tipo="nuevo_misterio">🔍 Nuevo misterio</button>
-                    <button class="notif-tipo-btn" data-tipo="anuncio">📢 Anuncio</button>
-                    <button class="notif-tipo-btn" data-tipo="respuesta">📬 Respuesta</button>
+        </div>
+        <!-- Gestión de grupos -->
+        <div class="card p-6" style="flex:1;min-width:240px;max-width:360px;">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-white">Grupos de envío</h2>
+                <button class="btn btn-blue" style="font-size:11px;padding:4px 10px;" id="new-group-btn">+ Nuevo</button>
+            </div>
+            <div id="groups-list"><p style="color:#8b949e;font-size:12px;">Carga los grupos con el botón de arriba.</p></div>
+            <button class="btn btn-gray" style="margin-top:12px;font-size:11px;width:100%;" id="load-groups-btn">🔄 Cargar grupos</button>
+            <!-- Mini-form para crear/editar grupo -->
+            <div id="group-editor" class="hidden" style="margin-top:16px;background:#0d1117;border-radius:8px;padding:12px;space-y-3;">
+                <input type="hidden" id="group-edit-id">
+                <input type="text" id="group-edit-name" placeholder="Nombre del grupo" style="margin-bottom:8px;">
+                <textarea id="group-edit-members" rows="4" placeholder="IDs de usuarios separados por coma&#10;ej: pata#guay, lobo#frio"></textarea>
+                <div class="flex gap-2 justify-end" style="margin-top:8px;">
+                    <button class="btn btn-gray" id="group-cancel-btn">Cancelar</button>
+                    <button class="btn btn-blue" id="group-save-btn">💾 Guardar grupo</button>
                 </div>
-                <input type="hidden" id="notif-tipo" value="general">
-            </div>
-            <div>
-                <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Título</label>
-                <input type="text" id="notif-titulo" placeholder="Título de la notificación">
-            </div>
-            <div>
-                <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Mensaje</label>
-                <textarea id="notif-mensaje" rows="3" placeholder="Cuerpo de la notificación..."></textarea>
-            </div>
-            <div>
-                <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Enlace (opcional)</label>
-                <input type="text" id="notif-link" placeholder="https://...">
-            </div>
-            <div class="flex justify-end">
-                <button class="btn btn-blue" id="send-notif-btn">🚀 Enviar notificación</button>
             </div>
         </div>
     </div>
@@ -239,6 +268,20 @@
         <div id="users-list">
             <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar usuarios" para ver la lista</p>
         </div>
+    </div>
+</div>
+
+<!-- ───────────────────────────────────────────────────────── -->
+<!-- TAB: MISTERIOS -->
+<!-- ───────────────────────────────────────────────────────── -->
+<div id="tab-misterios" class="hidden">
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <button class="btn btn-blue" id="load-mystery-stats-btn">🔄 Cargar estadísticas</button>
+        <input type="text" id="mystery-search" placeholder="Buscar misterio..." style="min-width:200px;flex:1;">
+        <span style="font-size:12px;color:#8b949e;" id="mystery-stats-count"></span>
+    </div>
+    <div id="mystery-stats-list">
+        <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar estadísticas" para ver los misterios</p>
     </div>
 </div>
 
@@ -377,7 +420,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios'].forEach(t => {
+        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios'].forEach(t => {
             document.getElementById('tab-' + t).classList.toggle('hidden', t !== btn.dataset.tab);
         });
     });
@@ -403,6 +446,8 @@ async function loadResponses() {
     document.getElementById('responses-list').innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
 
     try {
+        // Asegurarse de que los títulos estén cargados antes de renderizar
+        if (!Object.keys(mysteryTitleMap).length) await loadMysteryTitles();
         const res  = await fetch(`${APPS_SCRIPT_URL}?action=responses&token=${encodeURIComponent(token)}`);
         const data = await res.json();
         if (data.error) { toast('Error: ' + data.error, false); return; }
@@ -620,36 +665,6 @@ document.querySelectorAll('.notif-tipo-btn').forEach(btn => {
     });
 });
 
-document.getElementById('send-notif-btn').addEventListener('click', async () => {
-    const token   = document.getElementById('admin-token').value.trim();
-    const user    = document.getElementById('notif-user').value.trim() || 'TODOS';
-    const titulo  = document.getElementById('notif-titulo').value.trim();
-    const mensaje = document.getElementById('notif-mensaje').value.trim();
-    const tipo    = document.getElementById('notif-tipo').value;
-    const link    = document.getElementById('notif-link').value.trim();
-
-    if (!titulo || !mensaje) { toast('Faltan título o mensaje', false); return; }
-    if (!token) { toast('Introduce el token admin', false); return; }
-
-    const btn = document.getElementById('send-notif-btn');
-    btn.disabled = true; btn.textContent = '⏳ Enviando...';
-
-    try {
-        const url = `${APPS_SCRIPT_URL}?action=sendNotif&token=${encodeURIComponent(token)}&user=${encodeURIComponent(user)}&titulo=${encodeURIComponent(titulo)}&msg=${encodeURIComponent(mensaje)}&tipo=${encodeURIComponent(tipo)}&link=${encodeURIComponent(link)}`;
-        const res  = await fetch(url);
-        const data = await res.json();
-        if (data.error) { toast('Error: ' + data.error, false); }
-        else {
-            toast('🔔 Notificación enviada a ' + (user === 'TODOS' ? 'todos los usuarios' : user));
-            document.getElementById('notif-titulo').value  = '';
-            document.getElementById('notif-mensaje').value = '';
-            document.getElementById('notif-link').value    = '';
-        }
-    } catch(e) { toast('Error de conexión', false); }
-
-    btn.disabled = false; btn.textContent = '🚀 Enviar notificación';
-});
-
 // ═══════════════════════════════════════════════════════════════════
 // HISTORIAL DE USUARIO
 // ═══════════════════════════════════════════════════════════════════
@@ -823,7 +838,7 @@ function prefillSendNotif(userId, titulo, mensaje) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     const notifTab = document.querySelector('[data-tab="notificaciones"]');
     notifTab?.classList.add('active');
-    ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios'].forEach(t => {
+    ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios'].forEach(t => {
         document.getElementById('tab-' + t).classList.toggle('hidden', t !== 'notificaciones');
     });
     if (userId) document.getElementById('notif-user').value = userId;
@@ -1153,6 +1168,265 @@ document.getElementById('user-profile-modal').addEventListener('click', e => {
     if (e.target === document.getElementById('user-profile-modal'))
         document.getElementById('user-profile-modal').classList.add('hidden');
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// CSV EXPORT
+// ═══════════════════════════════════════════════════════════════════
+document.getElementById('csv-export-btn').addEventListener('click', () => {
+    const rows = getFilteredResponses();
+    if (!rows.length) { toast('No hay datos para exportar', false); return; }
+    const headers = ['Fecha','Misterio','Título misterio','Usuario','ID público','Solución','Explicación','Dificultad','Opinión','Estado','Comentario'];
+    const csvRows = [headers.join(',')];
+    rows.forEach(r => {
+        const fecha   = (() => { try { return new Date(r.fecha).toLocaleString('es'); } catch(e){ return r.fecha || ''; }})();
+        const estado  = r.correcto ? 'Correcta' : (r.comentario ? 'Incorrecta' : 'Pendiente');
+        const cols = [fecha, r.misterio||'', mystTitlePlain(r.misterio), r.nombre||'', r.idPublico||'', r.solucion||'', r.explicacion||'', r.dificultad||'', r.opinion||'', estado, r.comentario||''];
+        csvRows.push(cols.map(c => `"${String(c).replace(/"/g,'""')}"`).join(','));
+    });
+    const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement('a'), { href: url, download: `respuestas_${new Date().toISOString().slice(0,10)}.csv` });
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('⬇️ CSV exportado (' + rows.length + ' filas)');
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// LINK PREVIEW EN NOTIFICACIONES
+// ═══════════════════════════════════════════════════════════════════
+document.getElementById('notif-link').addEventListener('input', function() {
+    const val = this.value.trim();
+    const prev = document.getElementById('notif-link-preview');
+    if (!val) { prev.textContent = ''; return; }
+    const mystId = val.match(/^#mystery=(.+)$/)?.[1];
+    if (mystId) {
+        const title = mystTitlePlain(mystId);
+        prev.innerHTML = `🔍 Enlace a misterio: <strong style="color:#e6edf3;">${esc(title)}</strong> <span style="color:#484f58;">(${esc(mystId)})</span>`;
+    } else {
+        try { const d = new URL(val).hostname; prev.innerHTML = `🔗 Enlace externo: <strong style="color:#e6edf3;">${esc(d)}</strong>`; }
+        catch(e) { prev.textContent = '⚠️ URL no válida'; }
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// GRUPOS DE NOTIFICACIÓN
+// ═══════════════════════════════════════════════════════════════════
+let allGroups = [];
+
+document.getElementById('load-groups-btn').addEventListener('click', loadGroups);
+document.getElementById('new-group-btn').addEventListener('click', () => openGroupEditor());
+document.getElementById('group-save-btn').addEventListener('click', saveGroup);
+document.getElementById('group-cancel-btn').addEventListener('click', () => {
+    document.getElementById('group-editor').classList.add('hidden');
+});
+
+async function loadGroups() {
+    const token = document.getElementById('admin-token').value.trim();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getGroups&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        allGroups = data;
+        renderGroups();
+        renderGroupPills();
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+function renderGroups() {
+    const list = document.getElementById('groups-list');
+    if (!allGroups.length) { list.innerHTML = '<p style="color:#8b949e;font-size:12px;">Sin grupos creados aún.</p>'; return; }
+    list.innerHTML = allGroups.map(g => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#0d1117;border-radius:6px;margin-bottom:6px;gap:8px;">
+            <div class="min-w-0">
+                <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(g.nombre)}</p>
+                <p style="font-size:11px;color:#8b949e;">${g.members.length} miembro${g.members.length===1?'':'s'}</p>
+            </div>
+            <div style="display:flex;gap:4px;flex-shrink:0;">
+                <button class="btn btn-gray" style="padding:3px 8px;font-size:11px;" onclick='openGroupEditor(${JSON.stringify(g).replace(/'/g,"&#39;")})'>✏️</button>
+                <button class="btn btn-red" style="padding:3px 8px;font-size:11px;" onclick="deleteGroup('${esc(g.id)}')">🗑️</button>
+                <button class="btn btn-blue" style="padding:3px 8px;font-size:11px;" onclick="document.getElementById('notif-user').value='__group__${esc(g.id)}';document.getElementById('notif-group-selector').style.outline='2px solid #388bfd'">✉️ Enviar</button>
+            </div>
+        </div>`).join('');
+}
+
+function renderGroupPills() {
+    const container = document.getElementById('notif-groups-pills');
+    container.innerHTML = allGroups.map(g =>
+        `<button style="font-size:11px;background:#21262d;border:1px solid #30363d;color:#8b949e;padding:2px 8px;border-radius:12px;cursor:pointer;" onclick="document.getElementById('notif-user').value='__group__${esc(g.id)}';this.style.background='#1f6feb';this.style.color='#fff';">${esc(g.nombre)}</button>`
+    ).join('');
+}
+
+function openGroupEditor(g) {
+    document.getElementById('group-editor').classList.remove('hidden');
+    document.getElementById('group-edit-id').value      = g?.id     || '';
+    document.getElementById('group-edit-name').value    = g?.nombre || '';
+    document.getElementById('group-edit-members').value = g ? g.members.join(', ') : '';
+    document.getElementById('group-edit-name').focus();
+}
+
+async function saveGroup() {
+    const token   = document.getElementById('admin-token').value.trim();
+    const nombre  = document.getElementById('group-edit-name').value.trim();
+    const members = document.getElementById('group-edit-members').value;
+    const id      = document.getElementById('group-edit-id').value.trim();
+    if (!nombre) { toast('Pon un nombre al grupo', false); return; }
+    try {
+        const params = new URLSearchParams({ action:'saveGroup', token, nombre, members, id });
+        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        toast('💾 Grupo guardado');
+        document.getElementById('group-editor').classList.add('hidden');
+        await loadGroups();
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+async function deleteGroup(id) {
+    if (!confirm('¿Eliminar este grupo?')) return;
+    const token = document.getElementById('admin-token').value.trim();
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=deleteGroup&token=${encodeURIComponent(token)}&id=${encodeURIComponent(id)}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        toast('🗑️ Grupo eliminado');
+        await loadGroups();
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+// Interceptar send-notif para grupos
+document.getElementById('send-notif-btn').addEventListener('click', async () => {
+    const token  = document.getElementById('admin-token').value.trim();
+    const user   = document.getElementById('notif-user').value.trim();
+    const titulo = document.getElementById('notif-titulo').value.trim();
+    const msg    = document.getElementById('notif-mensaje').value.trim();
+    const tipo   = document.getElementById('notif-tipo').value;
+    const link   = document.getElementById('notif-link').value.trim();
+    if (!token)  { toast('Introduce el token admin', false); return; }
+    if (!titulo) { toast('El título no puede estar vacío', false); return; }
+    if (!msg)    { toast('El mensaje no puede estar vacío', false); return; }
+
+    const btn = document.getElementById('send-notif-btn');
+    btn.disabled = true; btn.textContent = '⏳ Enviando...';
+
+    try {
+        let action, params;
+        if (user.startsWith('__group__')) {
+            const groupId = user.replace('__group__', '');
+            action = 'sendNotifToGroup';
+            params = new URLSearchParams({ action, token, groupId, titulo, msg, tipo, link });
+        } else {
+            action = 'sendNotif';
+            params = new URLSearchParams({ action, token,
+                user  : user || 'TODOS',
+                titulo, msg, tipo, link
+            });
+        }
+        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); }
+        else {
+            const sentMsg = data.sent ? ` (enviada a ${data.sent} miembros)` : '';
+            toast('🚀 Notificación enviada' + sentMsg);
+            document.getElementById('notif-titulo').value = '';
+            document.getElementById('notif-mensaje').value = '';
+            document.getElementById('notif-link').value = '';
+            document.getElementById('notif-user').value = '';
+            document.getElementById('notif-link-preview').textContent = '';
+        }
+    } catch(e) { toast('Error de conexión', false); }
+    btn.disabled = false; btn.textContent = '🚀 Enviar notificación';
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// MISTERIOS — ESTADÍSTICAS
+// ═══════════════════════════════════════════════════════════════════
+let allMysteryStats = [];
+
+document.getElementById('load-mystery-stats-btn').addEventListener('click', loadMysteryStats);
+document.getElementById('mystery-search').addEventListener('input', renderMysteryStats);
+
+async function loadMysteryStats() {
+    const token = document.getElementById('admin-token').value.trim();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    if (!Object.keys(mysteryTitleMap).length) await loadMysteryTitles();
+    const list = document.getElementById('mystery-stats-list');
+    list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getMysteryStats&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        allMysteryStats = data;
+        renderMysteryStats();
+        toast('🔍 ' + data.length + ' misterios cargados');
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+function renderMysteryStats() {
+    const list   = document.getElementById('mystery-stats-list');
+    const search = document.getElementById('mystery-search').value.toLowerCase().trim();
+    const stats  = search
+        ? allMysteryStats.filter(m => mystTitlePlain(m.id).toLowerCase().includes(search) || m.id.toLowerCase().includes(search))
+        : allMysteryStats;
+
+    document.getElementById('mystery-stats-count').textContent = stats.length + ' misterio' + (stats.length===1?'':'s');
+
+    if (!stats.length) { list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin misterios</p>'; return; }
+
+    list.innerHTML = `<div style="display:grid;grid-template-columns:1fr 80px;gap:8px;padding:10px 16px;background:#0d1117;font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #21262d;">
+        <span>Misterio</span><span style="text-align:right;">Resuelto por</span>
+    </div>` + stats.map(m => {
+        const title = mystTitlePlain(m.id);
+        const top3  = m.solvers.slice(0, 3);
+        const topHTML = top3.map((s, i) => {
+            const medal = i===0?'🥇':i===1?'🥈':'🥉';
+            return `<span style="font-size:11px;color:#79c0ff;cursor:pointer;" title="${esc(s.puntos)} pts" onclick='openUserProfileById("${esc(s.idPublico)}")'>${medal} ${esc(s.nombre)}</span>`;
+        }).join('<span style="color:#30363d;"> · </span>');
+        const extraSolvers = m.totalSolvers > 3 ? `<span style="font-size:10px;color:#8b949e;"> +${m.totalSolvers-3} más</span>` : '';
+        return `<details style="border-bottom:1px solid #21262d;">
+            <summary style="display:grid;grid-template-columns:1fr 80px;gap:8px;padding:12px 16px;cursor:pointer;list-style:none;align-items:center;">
+                <div>
+                    <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(title)}</p>
+                    <p style="font-size:10px;color:#484f58;font-family:monospace;">${esc(m.id)}</p>
+                    ${m.totalSolvers ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">${topHTML}${extraSolvers}</div>` : ''}
+                </div>
+                <p style="font-size:14px;font-weight:700;color:${m.totalSolvers?'#4ade80':'#8b949e'};text-align:right;">${m.totalSolvers} 🧩</p>
+            </summary>
+            ${m.solvers.length ? `<div style="padding:8px 16px 12px;background:#0d1117;">
+                ${m.solvers.map((s, i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #21262d;gap:8px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:12px;color:#8b949e;width:20px;text-align:center;">${i+1}</span>
+                        <div>
+                            <span style="font-size:12px;font-weight:700;color:#e6edf3;cursor:pointer;" onclick='openUserProfileById("${esc(s.idPublico)}")'>${esc(s.nombre)}</span>
+                            <p style="font-size:10px;color:#8b949e;font-family:monospace;">${esc(s.idPublico)}</p>
+                        </div>
+                    </div>
+                    <div style="text-align:right;flex-shrink:0;">
+                        <p style="font-size:13px;font-weight:700;color:#f0e68c;">${s.puntos} pts</p>
+                        <button class="btn btn-gray" style="padding:2px 7px;font-size:10px;margin-top:2px;" onclick="event.stopPropagation();prefillSendNotif('${esc(s.idPublico)}')">✉️</button>
+                    </div>
+                </div>`).join('')}
+            </div>` : `<p style="color:#8b949e;font-size:12px;padding:8px 16px 12px;">Nadie ha resuelto este misterio aún.</p>`}
+        </details>`;
+    }).join('');
+}
+
+// Abre perfil de usuario desde su ID público (buscando en allUsers o cargando)
+async function openUserProfileById(idPublico) {
+    let u = allUsers.find(x => x.idPublico === idPublico);
+    if (!u) {
+        // Cargamos datos básicos desde getUserDetail
+        const token = document.getElementById('admin-token').value.trim();
+        if (!token) { toast('Introduce el token admin primero', false); return; }
+        try {
+            const res  = await fetch(`${APPS_SCRIPT_URL}?action=getUserDetail&token=${encodeURIComponent(token)}&idPublico=${encodeURIComponent(idPublico)}`);
+            const d    = await res.json();
+            if (d.error) { toast('Error: ' + d.error, false); return; }
+            u = { idPublico: d.idPublico, nombre: d.nombre, total: d.total, misteriosSueltos: (d.misterios||[]).length, misterios: d.misterios||[], _fullDetail: d };
+        } catch(e) { toast('Error de conexión', false); return; }
+    }
+    openUserProfile(u);
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // UTILIDADES
