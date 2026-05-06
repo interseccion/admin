@@ -39,13 +39,6 @@
         .upm-tab-btn:not(.active):hover { color: #e6edf3; }
         .stat-card { background: #0d1117; border-radius: 8px; padding: 12px; text-align: center; }
         .clickable-row { cursor: pointer; } .clickable-row:hover { background: #1c2128 !important; }
-        /* Autocomplete */
-        .ac-wrapper { position: relative; }
-        .ac-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #161b22; border: 1px solid #30363d; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); z-index: 200; max-height: 220px; overflow-y: auto; }
-        .ac-item { padding: 8px 12px; cursor: pointer; font-size: 12px; display: flex; flex-direction: column; gap: 1px; }
-        .ac-item:hover, .ac-item.active { background: #1f6feb22; }
-        .ac-item .ac-main { color: #e6edf3; font-weight: 600; }
-        .ac-item .ac-sub  { color: #8b949e; font-size: 10px; font-family: monospace; }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-6">
@@ -92,7 +85,7 @@
             <option value="correct">✅ Correctas</option>
             <option value="wrong">❌ Incorrectas</option>
         </select>
-        <div class="ac-wrapper"><input type="text" id="filter-user" placeholder="Filtrar por usuario..." style="width:180px;" autocomplete="off"></div>
+        <input type="text" id="filter-user" placeholder="Filtrar por usuario..." style="width:180px;">
         <span style="font-size:12px;color:#8b949e;" id="results-count"></span>
     </div>
 
@@ -116,9 +109,7 @@
                 <div>
                     <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Destinatario</label>
                     <div class="flex gap-2">
-                        <div class="ac-wrapper" style="flex:1;">
-                            <input type="text" id="notif-user" placeholder='ID público o vacío para "TODOS"' autocomplete="off">
-                        </div>
+                        <input type="text" id="notif-user" placeholder='ID público o vacío para "TODOS"'>
                         <button class="btn btn-gray" style="white-space:nowrap;flex-shrink:0;" onclick="document.getElementById('notif-user').value=''">📢 Todos</button>
                     </div>
                     <div id="notif-group-selector" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
@@ -183,9 +174,7 @@
     <div class="card p-6 max-w-xl">
         <h2 class="text-lg font-bold text-white mb-4">Historial de un usuario</h2>
         <div class="flex gap-2 mb-4">
-            <div class="ac-wrapper" style="flex:1;">
-                <input type="text" id="hist-user-input" placeholder='ID público (ej: pata#guay)' autocomplete="off">
-            </div>
+            <input type="text" id="hist-user-input" placeholder='ID público (ej: pata#guay)'>
             <button class="btn btn-blue" style="flex-shrink:0;" id="hist-load-btn">Ver historial</button>
         </div>
         <div id="hist-list"><p style="color:#8b949e;font-size:13px;">Introduce el ID público del usuario.</p></div>
@@ -222,7 +211,7 @@
             <option value="nuevo_misterio">🔍 Nuevo misterio</option>
             <option value="anuncio">📢 Anuncio</option>
         </select>
-        <div class="ac-wrapper"><input type="text" id="notif-sent-filter-user" placeholder="Filtrar por usuario (o TODOS)..." style="width:220px;" autocomplete="off"></div>
+        <input type="text" id="notif-sent-filter-user" placeholder="Filtrar por usuario (o TODOS)..." style="width:220px;">
         <button class="btn btn-blue" id="load-notifs-sent-btn">🔄 Cargar</button>
         <span style="font-size:12px;color:#8b949e;" id="notifs-sent-count"></span>
     </div>
@@ -288,7 +277,7 @@
 <div id="tab-misterios" class="hidden">
     <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
         <button class="btn btn-blue" id="load-mystery-stats-btn">🔄 Cargar estadísticas</button>
-        <div class="ac-wrapper" style="min-width:200px;flex:1;"><input type="text" id="mystery-search" placeholder="Buscar misterio..." style="width:100%;" autocomplete="off"></div>
+        <input type="text" id="mystery-search" placeholder="Buscar misterio..." style="min-width:200px;flex:1;">
         <span style="font-size:12px;color:#8b949e;" id="mystery-stats-count"></span>
     </div>
     <div id="mystery-stats-list">
@@ -360,7 +349,7 @@
                 <div class="flex gap-3 items-end flex-wrap">
                     <div style="flex:1;min-width:140px;">
                         <label style="font-size:11px;color:#8b949e;text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Concepto</label>
-                        <div class="ac-wrapper"><input type="text" id="adj-concept" value="ajuste_manual" placeholder="Columna a editar" autocomplete="off"></div>
+                        <input type="text" id="adj-concept" value="ajuste_manual" placeholder="Columna a editar">
                     </div>
                     <div style="width:100px;">
                         <label style="font-size:11px;color:#8b949e;text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Δ Puntos</label>
@@ -1438,136 +1427,6 @@ async function openUserProfileById(idPublico) {
     }
     openUserProfile(u);
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// AUTOCOMPLETADO
-// ═══════════════════════════════════════════════════════════════════
-
-/**
- * Crea un autocompletado en un <input> dentro de un .ac-wrapper.
- * @param {string}   inputId     – ID del input
- * @param {Function} getSuggestions(query) – devuelve [{main, sub, value}]
- * @param {Function} [onSelect]  – callback(value, item) al seleccionar
- * @param {Object}   [opts]      – { onInput: fn } para filtrado extra
- */
-function attachAutocomplete(inputId, getSuggestions, onSelect, opts = {}) {
-    const input = document.getElementById(inputId);
-    if (!input) return;
-
-    const wrapper = input.closest('.ac-wrapper');
-    if (!wrapper) return;
-
-    let dropdown  = null;
-    let activeIdx = -1;
-    let lastQuery = '';
-
-    function closeDropdown() {
-        dropdown?.remove();
-        dropdown  = null;
-        activeIdx = -1;
-    }
-
-    function openDropdown(items) {
-        closeDropdown();
-        if (!items.length) return;
-        dropdown = document.createElement('div');
-        dropdown.className = 'ac-dropdown';
-        dropdown.innerHTML = items.map((item, i) =>
-            `<div class="ac-item" data-idx="${i}">
-                <span class="ac-main">${esc(item.main)}</span>
-                ${item.sub ? `<span class="ac-sub">${esc(item.sub)}</span>` : ''}
-            </div>`
-        ).join('');
-        wrapper.appendChild(dropdown);
-        dropdown.querySelectorAll('.ac-item').forEach(el => {
-            el.addEventListener('mousedown', e => {
-                e.preventDefault();
-                const item = items[parseInt(el.dataset.idx)];
-                input.value = item.value;
-                closeDropdown();
-                onSelect?.(item.value, item);
-                opts.onInput?.();
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-            });
-        });
-    }
-
-    function highlightItem(idx) {
-        if (!dropdown) return;
-        dropdown.querySelectorAll('.ac-item').forEach((el, i) => {
-            el.classList.toggle('active', i === idx);
-            if (i === idx) el.scrollIntoView({ block: 'nearest' });
-        });
-    }
-
-    input.addEventListener('input', () => {
-        const q = input.value.trim().toLowerCase();
-        lastQuery = q;
-        if (!q) { closeDropdown(); return; }
-        const items = getSuggestions(q);
-        openDropdown(items);
-    });
-
-    input.addEventListener('keydown', e => {
-        if (!dropdown) return;
-        const items = dropdown.querySelectorAll('.ac-item');
-        if (e.key === 'ArrowDown')  { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); highlightItem(activeIdx); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); highlightItem(activeIdx); }
-        else if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); items[activeIdx]?.dispatchEvent(new MouseEvent('mousedown')); }
-        else if (e.key === 'Escape') closeDropdown();
-    });
-
-    input.addEventListener('blur', () => setTimeout(closeDropdown, 150));
-}
-
-// Fuente de usuarios
-function userSuggestions(q) {
-    return allUsers
-        .filter(u => u.nombre?.toLowerCase().includes(q) || u.idPublico?.toLowerCase().includes(q))
-        .slice(0, 8)
-        .map(u => ({ main: u.nombre || u.idPublico, sub: u.idPublico, value: u.idPublico }));
-}
-
-// Fuente de misterios (título o ID)
-function mysterySuggestions(q) {
-    return Object.entries(mysteryTitleMap)
-        .filter(([id, title]) => title.toLowerCase().includes(q) || id.toLowerCase().includes(q))
-        .slice(0, 8)
-        .map(([id, title]) => ({ main: title, sub: id, value: id }));
-}
-
-// Vincular cuando los datos estén disponibles (allUsers puede estar vacío al inicio)
-function initAutocompletes() {
-    attachAutocomplete('notif-user',            userSuggestions);
-    attachAutocomplete('hist-user-input',        userSuggestions);
-    attachAutocomplete('filter-user',            userSuggestions, null, { onInput: renderResponses });
-    attachAutocomplete('notif-sent-filter-user', userSuggestions);
-    attachAutocomplete('mystery-search',         mysterySuggestions, null, { onInput: renderMysteryStats });
-    attachAutocomplete('adj-concept',            (q) => {
-        // Sugiere IDs de misterio como concepto de ajuste de puntos
-        return Object.entries(mysteryTitleMap)
-            .filter(([id, title]) => id.toLowerCase().includes(q) || title.toLowerCase().includes(q))
-            .slice(0, 6)
-            .map(([id, title]) => ({ main: id, sub: title, value: id }));
-    });
-}
-
-// Lanzar los autocompletes en cuanto haya datos; si ya están cargados, inmediato
-const _origLoadUsers = loadUsers;
-loadUsers = async function(...args) {
-    await _origLoadUsers(...args);
-    initAutocompletes();
-};
-
-// También inicializar cuando se carguen títulos de misterios
-const _origLoadMysteryTitles = loadMysteryTitles;
-loadMysteryTitles = async function(...args) {
-    await _origLoadMysteryTitles(...args);
-    initAutocompletes();
-};
-
-// Inicializar de todas formas (puede que ya haya datos cargados)
-setTimeout(initAutocompletes, 500);
 
 // ═══════════════════════════════════════════════════════════════════
 // UTILIDADES
