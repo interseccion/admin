@@ -238,6 +238,11 @@
             <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Comentario para el usuario (opcional)</label>
             <textarea id="review-comment" rows="3" placeholder="Deja aquí un comentario..."></textarea>
         </div>
+        <!-- Opción de notificar al guardar comentario -->
+        <div id="notify-on-comment-row" class="hidden" style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="notify-on-comment" style="width:14px;height:14px;accent-color:#6366f1;">
+            <label for="notify-on-comment" style="font-size:12px;color:#8b949e;cursor:pointer;">📣 Notificar al usuario sobre este comentario</label>
+        </div>
         <!-- Botones para respuestas pendientes -->
         <div class="flex gap-3 mt-4 justify-end flex-wrap" id="review-btns-pending">
             <button class="btn btn-gray" onclick="closeReviewModal()">Cancelar</button>
@@ -642,6 +647,11 @@ function openReview(row) {
     document.getElementById('review-btns-pending').classList.toggle('hidden', isMarked);
     document.getElementById('review-btns-marked').classList.toggle('hidden', !isMarked);
     document.getElementById('review-btns-remark').classList.add('hidden');
+    // Mostrar opción de notificar solo en modo "ya marcada" (guardar comentario)
+    const notifyRow = document.getElementById('notify-on-comment-row');
+    if (notifyRow) notifyRow.style.display = isMarked ? 'flex' : 'none';
+    const notifyCheck = document.getElementById('notify-on-comment');
+    if (notifyCheck) notifyCheck.checked = false;
 
     document.getElementById('review-modal').classList.remove('hidden');
 }
@@ -694,6 +704,7 @@ document.getElementById('review-save-comment-btn').addEventListener('click', asy
     if (!currentReviewRow) return;
     const token   = document.getElementById('admin-token').value.trim();
     const comment = document.getElementById('review-comment').value.trim();
+    const sendNotif = document.getElementById('notify-on-comment')?.checked;
     const btn = document.getElementById('review-save-comment-btn');
     btn.disabled = true; btn.textContent = '⏳...';
     try {
@@ -701,7 +712,23 @@ document.getElementById('review-save-comment-btn').addEventListener('click', asy
         const data = await res.json();
         if (data.error) { toast('Error: ' + data.error, false); }
         else {
-            toast('💾 Comentario guardado');
+            // Si el checkbox está marcado, enviar notificación al usuario
+            if (sendNotif && comment) {
+                const r = allResponses.find(x => x.row === currentReviewRow);
+                if (r?.idPublico) {
+                    const mystName = mystTitlePlain(r.misterio);
+                    const params = new URLSearchParams({
+                        action: 'sendNotif', token,
+                        user   : r.idPublico,
+                        titulo : `💬 Comentario en «${mystName}»`,
+                        msg    : comment,
+                        tipo   : 'respuesta',
+                        link   : `#mystery=${r.misterio}`
+                    });
+                    await fetch(`${APPS_SCRIPT_URL}?${params}`).catch(() => {});
+                }
+            }
+            toast(sendNotif && comment ? '💾 Comentario guardado y usuario notificado 📣' : '💾 Comentario guardado');
             const idx = allResponses.findIndex(r => r.row === currentReviewRow);
             if (idx >= 0) allResponses[idx].comentario = comment;
             closeReviewModal();
