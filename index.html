@@ -1,1018 +1,1578 @@
-/**
- * ============================================================
- * LA INTERSECCIÓN — Google Apps Script v2
- * ============================================================
- *
- * CAMBIOS RESPECTO A v1:
- *  - Formulario unificado: todas las respuestas van a la hoja "RESPUESTAS"
- *  - Nueva hoja "NOTIFICACIONES" para la campanita de la web
- *  - Desplegado como Web App: doGet sirve datos a index.html y admin_respuestas.html
- *  - Las operaciones de admin (marcar correcto, comentarios, notifs) van por doGet con token
- *  - Se mantiene compatibilidad con sub-hojas antiguas (trigger original)
- *
- * INSTALACIÓN:
- *  1. Pegar este código en Extensions > Apps Script del Google Sheet
- *  2. Ejecutar "instalarTrigger" una sola vez
- *  3. Desplegar como Web App:
- *       Desplegar > Nueva implementación > Tipo: App web
- *       Ejecutar como: Yo (mi cuenta)
- *       Acceso: Cualquier usuario
- *  4. Copiar la URL de despliegue y pegarla en index.html y admin_respuestas.html
- *     en la constante APPS_SCRIPT_URL
- *
- * ESTRUCTURA DE LA HOJA "RESPUESTAS" (vinculada al formulario unificado):
- *  A: Marca de tiempo  (auto, Google Forms)
- *  B: id_misterio      (entry.632099313)
- *  C: id_privado       (entry.2009487749)
- *  D: solucion         (entry.475857579)
- *  E: explicacion      (entry.1318916986)
- *  F: dificultad       (entry.279152251)
- *  G: opinion_sugerencias (entry.1635700365)
- *  H: ✅ Correcto      (checkbox, añadir manualmente)
- *  I: Comentario_Admin (texto, añadir manualmente)
- *
- * ESTRUCTURA DE LA HOJA "NOTIFICACIONES":
- *  A: id_notif  (timestamp string, ej: "1700000000000")
- *  B: id_publico ("pata#guay" o "TODOS" para broadcast)
- *  C: titulo
- *  D: mensaje
- *  E: fecha     (ISO 8601)
- *  F: tipo      ("respuesta" | "anuncio" | "nuevo_misterio" | "general")
- *  G: link      (URL opcional, puede estar vacío)
- * ============================================================
- */
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Respuestas — La Intersección</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0d1117; color: #e6edf3; }
+        ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: #0d1117; } ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; }
+        .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+        .badge-pending  { background: #451a03; color: #fb923c; border: 1px solid #9a3412; }
+        .badge-correct  { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+        .badge-wrong    { background: #450a0a; color: #f87171; border: 1px solid #991b1b; }
+        .tab-btn { padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: 1px solid transparent; color: #8b949e; }
+        .tab-btn.active { background: #1f6feb; color: white; border-color: #388bfd; }
+        .tab-btn:not(.active):hover { background: #21262d; color: #e6edf3; }
+        input, select, textarea { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; padding: 7px 11px; font-size: 13px; outline: none; width: 100%; }
+        input:focus, select:focus, textarea:focus { border-color: #58a6ff; }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: none; }
+        .btn-green  { background: #238636; color: white; } .btn-green:hover  { background: #2ea043; }
+        .btn-red    { background: #da3633; color: white; } .btn-red:hover    { background: #f85149; }
+        .btn-blue   { background: #1f6feb; color: white; } .btn-blue:hover   { background: #388bfd; }
+        .btn-gray   { background: #21262d; color: #e6edf3; border: 1px solid #30363d; } .btn-gray:hover { background: #30363d; }
+        .btn-purple { background: #6e40c9; color: white; } .btn-purple:hover { background: #8b5cf6; }
+        .row-item { border-bottom: 1px solid #21262d; transition: background 0.1s; }
+        .row-item:hover { background: #161b22; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #238636; color: white; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; z-index: 999; transition: opacity 0.3s; }
+        .toast.error { background: #da3633; }
+        .toast.hidden { opacity: 0; pointer-events: none; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100; }
+        .modal-box { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 24px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+        .notif-tipo-btn { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #30363d; background: #21262d; color: #8b949e; transition: all 0.15s; }
+        .notif-tipo-btn.sel { background: #1f6feb; color: white; border-color: #388bfd; }
+        .upm-tab-btn { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; background: transparent; color: #8b949e; transition: all 0.15s; }
+        .upm-tab-btn.active { background: #21262d; color: #e6edf3; border-color: #30363d; }
+        .upm-tab-btn:not(.active):hover { color: #e6edf3; }
+        .stat-card { background: #0d1117; border-radius: 8px; padding: 12px; text-align: center; }
+        .clickable-row { cursor: pointer; } .clickable-row:hover { background: #1c2128 !important; }
+        /* Autocomplete */
+        .ac-wrapper { position: relative; }
+        .ac-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #161b22; border: 1px solid #30363d; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); z-index: 200; max-height: 220px; overflow-y: auto; }
+        .ac-item { padding: 8px 12px; cursor: pointer; font-size: 12px; display: flex; flex-direction: column; gap: 1px; }
+        .ac-item:hover, .ac-item.active { background: #1f6feb22; }
+        .ac-item .ac-main { color: #e6edf3; font-weight: 600; }
+        .ac-item .ac-sub  { color: #8b949e; font-size: 10px; font-family: monospace; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-6">
 
-// ─── CONSTANTES GENERALES ──────────────────────────────────────────────────────
-const SHEET_PRINCIPAL      = 'PRINCIPAL';
-const SHEET_PARAMS         = 'PARÁMETROS';
-const SHEET_PRIVADO        = 'PRIVADO';
-const SHEET_RESPUESTAS     = 'RESPUESTAS';
-const SHEET_NOTIFICACIONES = 'NOTIFICACIONES';
-const SHEET_FEEDBACK       = 'FEEDBACK';
-const SHEET_GRUPOS         = 'GRUPOS';
+<!-- Header -->
+<header class="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-black text-white">Panel de Admin</h1>
+        <p style="font-size:13px;color:#8b949e;">La Intersección — Respuestas & Notificaciones</p>
+    </div>
+    <div class="flex items-center gap-3 flex-wrap">
+        <div class="flex items-center gap-2">
+            <span style="font-size:12px;color:#8b949e;">Token admin:</span>
+            <input type="password" id="admin-token" placeholder="Tu ID privado completo" style="width:220px;" class="text-xs">
+        </div>
+        <button class="btn btn-blue" id="load-btn">🔄 Cargar respuestas</button>
+        <button class="btn btn-gray" id="csv-export-btn" title="Exportar respuestas visibles a CSV" style="font-size:12px;">⬇️ CSV</button>
+    </div>
+</header>
 
-// PRINCIPAL (igual que v1)
-const P_COL_PUBLIC_ID  = 0;
-const P_COL_NAME       = 1;
-const P_COL_TOTAL_PTS  = 2;
-const P_COL_MYST_START = 3;
+<!-- Tabs -->
+<div class="flex gap-2 mb-6 flex-wrap">
+    <button class="tab-btn active" data-tab="respuestas">📬 Respuestas</button>
+    <button class="tab-btn" data-tab="notificaciones">🔔 Enviar notificación</button>
+    <button class="tab-btn" data-tab="historial">📋 Historial usuario</button>
+    <button class="tab-btn" data-tab="notifs-enviadas">📤 Notifs enviadas</button>
+    <button class="tab-btn" data-tab="feedback">💬 Feedback</button>
+    <button class="tab-btn" data-tab="usuarios">👥 Usuarios</button>
+    <button class="tab-btn" data-tab="misterios">🔍 Misterios</button>
+</div>
 
-// RESPUESTAS (nueva hoja unificada)
-const R_COL_TIMESTAMP   = 0;  // A
-const R_COL_MISTERIO    = 1;  // B
-const R_COL_PRIVADO_ID  = 2;  // C
-const R_COL_SOLUCION    = 3;  // D
-const R_COL_EXPLICACION = 4;  // E
-const R_COL_DIFICULTAD  = 5;  // F
-const R_COL_OPINION     = 6;  // G
-const R_COL_CORRECTO    = 7;  // H  ← checkbox manual
-const R_COL_COMENTARIO  = 8;  // I  ← texto manual
+<!-- ───────────────────────────────────────────────────────── -->
+<!-- TAB: RESPUESTAS -->
+<!-- ───────────────────────────────────────────────────────── -->
+<div id="tab-respuestas">
+    <!-- Filtros -->
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <select id="filter-misterio" style="width:180px;">
+            <option value="">Todos los misterios</option>
+        </select>
+        <select id="filter-estado" style="width:150px;">
+            <option value="">Todos los estados</option>
+            <option value="pending">⏳ Pendientes</option>
+            <option value="correct">✅ Correctas</option>
+            <option value="wrong">❌ Incorrectas</option>
+        </select>
+        <div class="ac-wrapper"><input type="text" id="filter-user" placeholder="Filtrar por usuario..." style="width:180px;" autocomplete="off"></div>
+        <span style="font-size:12px;color:#8b949e;" id="results-count"></span>
+    </div>
 
-// NOTIFICACIONES
-const N_COL_ID      = 0;  // A
-const N_COL_USER    = 1;  // B
-const N_COL_TITULO  = 2;  // C
-const N_COL_MENSAJE = 3;  // D
-const N_COL_FECHA   = 4;  // E
-const N_COL_TIPO    = 5;  // F
-const N_COL_LINK    = 6;  // G
+    <!-- Lista -->
+    <div class="card overflow-hidden">
+        <div id="responses-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Introduce el token y pulsa "Cargar respuestas"</p>
+        </div>
+    </div>
+</div>
 
-// PARÁMETROS (igual que v1)
-const PARAM_COL_ID          = 0;
-const PARAM_COL_DIFFICULTY  = 1;
-const PARAM_COL_UTD         = 2;
-const PARAM_COL_LAST_CLUE   = 3;
-const PARAM_COL_PTS_SAVED   = 4;
-const PARAM_COL_CLUES_START = 5;
+<!-- ───────────────────────────────────────────────────────── -->
+<!-- TAB: NOTIFICACIONES -->
+<!-- ───────────────────────────────────────────────────────── -->
+<div id="tab-notificaciones" class="hidden">
+    <div class="flex gap-4 flex-wrap items-start">
+        <!-- Formulario de envío -->
+        <div class="card p-6" style="flex:1;min-width:280px;max-width:480px;">
+            <h2 class="text-lg font-bold text-white mb-5">Enviar notificación manual</h2>
+            <div class="space-y-4">
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Destinatario</label>
+                    <div class="flex gap-2">
+                        <div class="ac-wrapper" style="flex:1;">
+                            <input type="text" id="notif-user" placeholder='ID público o vacío para "TODOS"' autocomplete="off">
+                        </div>
+                        <button class="btn btn-gray" style="white-space:nowrap;flex-shrink:0;" onclick="document.getElementById('notif-user').value=''">📢 Todos</button>
+                    </div>
+                    <div id="notif-group-selector" style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+                        <span style="font-size:11px;color:#8b949e;align-self:center;">Grupos:</span>
+                        <span id="notif-groups-pills" style="display:contents;"></span>
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Tipo</label>
+                    <div class="flex gap-2 flex-wrap" id="notif-tipo-btns">
+                        <button class="notif-tipo-btn sel" data-tipo="general">🔔 General</button>
+                        <button class="notif-tipo-btn" data-tipo="nuevo_misterio">🔍 Nuevo misterio</button>
+                        <button class="notif-tipo-btn" data-tipo="anuncio">📢 Anuncio</button>
+                        <button class="notif-tipo-btn" data-tipo="respuesta">📬 Respuesta</button>
+                    </div>
+                    <input type="hidden" id="notif-tipo" value="general">
+                </div>
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Título</label>
+                    <input type="text" id="notif-titulo" placeholder="Título de la notificación">
+                </div>
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Mensaje</label>
+                    <textarea id="notif-mensaje" rows="3" placeholder="Cuerpo de la notificación..."></textarea>
+                </div>
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Enlace (opcional — puede ser https://... o #mystery=ID)</label>
+                    <input type="text" id="notif-link" placeholder="https://es.wikipedia.org/... o #mystery=mi_misterio">
+                    <p id="notif-link-preview" style="font-size:11px;color:#8b949e;margin-top:4px;"></p>
+                </div>
+                <div class="flex justify-end">
+                    <button class="btn btn-blue" id="send-notif-btn">🚀 Enviar notificación</button>
+                </div>
+            </div>
+        </div>
+        <!-- Gestión de grupos -->
+        <div class="card p-6" style="flex:1;min-width:240px;max-width:360px;">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-white">Grupos de envío</h2>
+                <button class="btn btn-blue" style="font-size:11px;padding:4px 10px;" id="new-group-btn">+ Nuevo</button>
+            </div>
+            <div id="groups-list"><p style="color:#8b949e;font-size:12px;">Carga los grupos con el botón de arriba.</p></div>
+            <button class="btn btn-gray" style="margin-top:12px;font-size:11px;width:100%;" id="load-groups-btn">🔄 Cargar grupos</button>
+            <!-- Mini-form para crear/editar grupo -->
+            <div id="group-editor" class="hidden" style="margin-top:16px;background:#0d1117;border-radius:8px;padding:12px;space-y-3;">
+                <input type="hidden" id="group-edit-id">
+                <input type="text" id="group-edit-name" placeholder="Nombre del grupo" style="margin-bottom:8px;">
+                <textarea id="group-edit-members" rows="4" placeholder="IDs de usuarios separados por coma&#10;ej: pata#guay, lobo#frio"></textarea>
+                <div class="flex gap-2 justify-end" style="margin-top:8px;">
+                    <button class="btn btn-gray" id="group-cancel-btn">Cancelar</button>
+                    <button class="btn btn-blue" id="group-save-btn">💾 Guardar grupo</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-// Puntos base por posición
-const RANK_POINTS = [5, 3, 2];
-const RANK_REST   = 1;
+<!-- ───────────────────────────────────────────────────────── -->
+<!-- TAB: HISTORIAL -->
+<!-- ───────────────────────────────────────────────────────── -->
+<div id="tab-historial" class="hidden">
+    <div class="card p-6 max-w-xl">
+        <h2 class="text-lg font-bold text-white mb-4">Historial de un usuario</h2>
+        <div class="flex gap-2 mb-4">
+            <div class="ac-wrapper" style="flex:1;">
+                <input type="text" id="hist-user-input" placeholder='ID público (ej: pata#guay)' autocomplete="off">
+            </div>
+            <button class="btn btn-blue" style="flex-shrink:0;" id="hist-load-btn">Ver historial</button>
+        </div>
+        <div id="hist-list"><p style="color:#8b949e;font-size:13px;">Introduce el ID público del usuario.</p></div>
+    </div>
+</div>
 
-// Token de admin: pon aquí tu ID privado completo
-// (solo tú lo sabes, actúa como contraseña)
-const ADMIN_TOKEN = 'pepitogrillo27~UGVwaXRvIEdyaWxsbw~c28yp~gs2y3cos';
+<!-- ───────────────────────────────────────────────────────── -->
+<!-- TAB: FEEDBACK -->
+<!-- ───────────────────────────────────────────────────────── -->
+<div id="tab-feedback" class="hidden">
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <select id="fb-filter-tipo" style="width:180px;">
+            <option value="">Todos los tipos</option>
+            <option value="sugerencia">💡 Sugerencia</option>
+            <option value="bug">🐛 Bug / Error</option>
+            <option value="elogio">❤️ Elogio</option>
+            <option value="otro">💬 Otro</option>
+        </select>
+        <button class="btn btn-blue" id="load-feedback-btn">🔄 Cargar</button>
+        <span style="font-size:12px;color:#8b949e;" id="feedback-count"></span>
+    </div>
+    <div class="card overflow-hidden">
+        <div id="feedback-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar" para ver el feedback recibido</p>
+        </div>
+    </div>
+</div>
+<div id="tab-notifs-enviadas" class="hidden">
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <select id="notif-sent-filter-tipo" style="width:180px;">
+            <option value="">Todos los tipos</option>
+            <option value="general">🔔 General</option>
+            <option value="respuesta">📬 Respuesta</option>
+            <option value="nuevo_misterio">🔍 Nuevo misterio</option>
+            <option value="anuncio">📢 Anuncio</option>
+        </select>
+        <div class="ac-wrapper"><input type="text" id="notif-sent-filter-user" placeholder="Filtrar por usuario (o TODOS)..." style="width:220px;" autocomplete="off"></div>
+        <button class="btn btn-blue" id="load-notifs-sent-btn">🔄 Cargar</button>
+        <span style="font-size:12px;color:#8b949e;" id="notifs-sent-count"></span>
+    </div>
+    <div class="card overflow-hidden">
+        <div id="notifs-sent-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar" para ver las notificaciones enviadas</p>
+        </div>
+    </div>
+</div>
 
+<!-- Modal de revisión -->
+<div id="review-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-white" id="review-title">Revisar respuesta</h3>
+            <button onclick="closeReviewModal()" class="text-gray-400 hover:text-white text-xl">×</button>
+        </div>
+        <div id="review-content" class="space-y-3 mb-5"></div>
+        <div>
+            <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Comentario para el usuario (opcional)</label>
+            <textarea id="review-comment" rows="3" placeholder="Deja aquí un comentario..."></textarea>
+        </div>
+        <!-- Botones para respuestas pendientes -->
+        <div class="flex gap-3 mt-4 justify-end flex-wrap" id="review-btns-pending">
+            <button class="btn btn-gray" onclick="closeReviewModal()">Cancelar</button>
+            <button class="btn btn-red" id="review-wrong-btn">❌ Marcar incorrecta</button>
+            <button class="btn btn-green" id="review-correct-btn">✅ Marcar correcta</button>
+        </div>
+        <!-- Botones para respuestas ya marcadas -->
+        <div class="flex gap-3 mt-4 justify-end flex-wrap hidden" id="review-btns-marked">
+            <button class="btn btn-gray" onclick="closeReviewModal()">Cerrar</button>
+            <button class="btn btn-gray" id="review-save-comment-btn">💾 Guardar comentario</button>
+            <button class="btn btn-purple" id="review-remark-btn">✏️ Corregir veredicto</button>
+        </div>
+        <!-- Botones de corrección (ocultos, se muestran al pulsar Corregir) -->
+        <div class="flex gap-3 mt-3 justify-end flex-wrap hidden" id="review-btns-remark">
+            <span style="font-size:12px;color:#8b949e;align-self:center;">Cambiar a:</span>
+            <button class="btn btn-red" id="review-wrong-remark-btn">❌ Incorrecta</button>
+            <button class="btn btn-green" id="review-correct-remark-btn">✅ Correcta</button>
+        </div>
+    </div>
+</div>
 
-// ─── TRIGGER ──────────────────────────────────────────────────────────────────
+<!-- ───────────────────────────────────────────────────────── -->
+<!-- TAB: USUARIOS -->
+<!-- ───────────────────────────────────────────────────────── -->
+<div id="tab-usuarios" class="hidden">
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <input type="text" id="users-search" placeholder="Buscar por nombre o ID..." style="min-width:220px;flex:1;">
+        <button class="btn btn-blue" id="load-users-btn">🔄 Cargar usuarios</button>
+        <span style="font-size:12px;color:#8b949e;" id="users-count"></span>
+    </div>
+    <div class="card overflow-hidden">
+        <div id="users-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar usuarios" para ver la lista</p>
+        </div>
+    </div>
+</div>
 
-function instalarTrigger() {
-  ScriptApp.getProjectTriggers().forEach(t => {
-    if (t.getHandlerFunction() === 'onEditInstalado') ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger('onEditInstalado')
-    .forSpreadsheet(SpreadsheetApp.getActiveSpreadsheet())
-    .onEdit()
-    .create();
-  SpreadsheetApp.getUi().alert('✅ Trigger instalado.');
+<!-- ───────────────────────────────────────────────────────── -->
+<!-- TAB: MISTERIOS -->
+<!-- ───────────────────────────────────────────────────────── -->
+<div id="tab-misterios" class="hidden">
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <button class="btn btn-blue" id="load-mystery-stats-btn">🔄 Cargar estadísticas</button>
+        <div class="ac-wrapper" style="min-width:200px;flex:1;"><input type="text" id="mystery-search" placeholder="Buscar misterio..." style="width:100%;" autocomplete="off"></div>
+        <span style="font-size:12px;color:#8b949e;" id="mystery-stats-count"></span>
+    </div>
+    <div id="mystery-stats-list">
+        <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar estadísticas" para ver los misterios</p>
+    </div>
+</div>
+
+<!-- Modal: detalle de notificación enviada -->
+<div id="notif-sent-modal" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:480px;">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <span id="nsm-icon" class="text-xl"></span>
+                <span id="nsm-title"></span>
+            </h3>
+            <button onclick="closeNotifSentModal()" class="text-gray-400 hover:text-white text-xl">×</button>
+        </div>
+        <div class="space-y-3 mb-5">
+            <div style="background:#0d1117;border-radius:8px;padding:12px;display:flex;gap:16px;flex-wrap:wrap;">
+                <div><p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:2px;">Para</p>
+                    <p id="nsm-dest" class="text-sm font-bold text-yellow-400"></p></div>
+                <div><p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:2px;">Tipo</p>
+                    <p id="nsm-tipo" class="text-sm text-gray-300"></p></div>
+                <div><p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:2px;">Fecha</p>
+                    <p id="nsm-fecha" class="text-sm text-gray-300"></p></div>
+            </div>
+            <div style="background:#0d1117;border-radius:8px;padding:12px;">
+                <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Mensaje</p>
+                <p id="nsm-msg" class="text-sm text-gray-200" style="white-space:pre-line;max-height:160px;overflow-y:auto;"></p>
+            </div>
+            <div id="nsm-link-row" class="hidden" style="font-size:12px;"></div>
+        </div>
+        <div class="flex gap-3 justify-end">
+            <button class="btn btn-gray" onclick="closeNotifSentModal()">Cerrar</button>
+            <button class="btn btn-blue" id="nsm-reply-btn">↩️ Responder a este usuario</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: perfil de usuario -->
+<div id="user-profile-modal" class="modal-overlay hidden" style="align-items:flex-start;overflow-y:auto;padding:24px 8px;">
+    <div class="modal-box" style="max-width:600px;width:100%;margin:auto;max-height:none;">
+        <!-- Cabecera -->
+        <div class="flex items-start justify-between mb-5">
+            <div>
+                <h3 id="upm-name" class="text-xl font-bold text-white mb-1"></h3>
+                <p id="upm-id" class="text-xs text-gray-500 font-mono"></p>
+            </div>
+            <button onclick="document.getElementById('user-profile-modal').classList.add('hidden')" class="text-gray-400 hover:text-white text-xl flex-shrink-0 ml-4">×</button>
+        </div>
+        <!-- Stats rápidos -->
+        <div class="grid grid-cols-3 gap-3 mb-5" id="upm-stats"></div>
+        <!-- Sub-tabs -->
+        <div class="flex gap-2 mb-4 flex-wrap border-b border-gray-700 pb-3">
+            <button class="upm-tab-btn active" data-utab="misterios">🔍 Misterios</button>
+            <button class="upm-tab-btn" data-utab="historial">📋 Historial</button>
+            <button class="upm-tab-btn" data-utab="notifs">🔔 Notificaciones</button>
+            <button class="upm-tab-btn" data-utab="feedback">💬 Feedback</button>
+            <button class="upm-tab-btn" data-utab="ajustar">⚙️ Ajustar puntos</button>
+        </div>
+        <!-- Sub-tab contents -->
+        <div id="upm-misterios" class="upm-tab-content space-y-2"></div>
+        <div id="upm-historial" class="upm-tab-content hidden space-y-2"></div>
+        <div id="upm-notifs"    class="upm-tab-content hidden space-y-2"></div>
+        <div id="upm-feedback"  class="upm-tab-content hidden space-y-2"></div>
+        <div id="upm-ajustar"   class="upm-tab-content hidden">
+            <div class="card p-5 space-y-4 border-0" style="background:#0d1117;">
+                <p style="font-size:13px;color:#8b949e;">Añade o resta puntos a este usuario. Se guarda en una columna "ajuste_manual" en PRINCIPAL. El total se recalcula solo.</p>
+                <div class="flex gap-3 items-end flex-wrap">
+                    <div style="flex:1;min-width:140px;">
+                        <label style="font-size:11px;color:#8b949e;text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Concepto</label>
+                        <div class="ac-wrapper"><input type="text" id="adj-concept" value="ajuste_manual" placeholder="Columna a editar" autocomplete="off"></div>
+                    </div>
+                    <div style="width:100px;">
+                        <label style="font-size:11px;color:#8b949e;text-transform:uppercase;font-weight:700;display:block;margin-bottom:4px;">Δ Puntos</label>
+                        <input type="number" id="adj-delta" value="0" step="0.5">
+                    </div>
+                    <button class="btn btn-blue" id="adj-submit-btn">Aplicar</button>
+                </div>
+                <p id="adj-result" style="font-size:12px;color:#4ade80;" class="hidden"></p>
+            </div>
+        </div>
+        <!-- Footer -->
+        <div class="flex gap-3 mt-5 justify-end border-t border-gray-700 pt-4">
+            <button class="btn btn-gray" onclick="document.getElementById('user-profile-modal').classList.add('hidden')">Cerrar</button>
+            <button class="btn btn-blue" id="upm-send-notif-btn">🔔 Enviar notificación</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// CONFIGURACIÓN — cambia solo esta línea
+// ═══════════════════════════════════════════════════════════════════
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzWxNV_zyNIUveSDunEUXHCuHIkWmbtLiosFHEHwJYvpprn9_Rsg4OkLZ-pLjXiiO2EbA/exec';
+const GAMES_INDEX_PATH = 'games/index.json';
+
+// Mapa id → título de misterio (cargado al inicio)
+let mysteryTitleMap = {};
+
+async function loadMysteryTitles() {
+    try {
+        const indexRes = await fetch(`${GAMES_INDEX_PATH}?v=${Date.now()}`);
+        if (!indexRes.ok) return;
+        const files = await indexRes.json();
+        const results = await Promise.all(
+            files.map(f => fetch(`games/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
+        );
+        results.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
+    } catch(e) { console.warn('No se pudieron cargar títulos de misterios:', e); }
 }
 
-function onEditInstalado(e) {
-  const sheet     = e.source.getActiveSheet();
-  const sheetName = sheet.getName();
-  const range     = e.range;
-
-  if (range.getRow() < 2) return;
-
-  // ── Hoja RESPUESTAS (formulario unificado) ──
-  if (sheetName === SHEET_RESPUESTAS) {
-    if (range.getColumn() !== R_COL_CORRECTO + 1) return;  // solo columna H
-    if (e.value !== 'TRUE') return;
-    const row     = range.getRow();
-    const rowData = sheet.getRange(row, 1, 1, 9).getValues()[0];
-    _procesarRespuestaCorrecta(row, rowData, sheet);
-    return;
-  }
-
-  // ── Sub-hojas antiguas (compatibilidad v1) ──
-  if ([SHEET_PRINCIPAL, SHEET_PARAMS, SHEET_PRIVADO, SHEET_NOTIFICACIONES, SHEET_FEEDBACK].includes(sheetName)) return;
-  if (range.getColumn() !== 1) return;
-  if (e.value !== 'TRUE') return;
-
-  const mysteryId = sheetName;
-  const row       = range.getRow();
-  const rowData   = sheet.getRange(row, 1, 1, 6).getValues()[0];
-  const privateId = rowData[2]?.toString()?.trim();
-  const submittedAt = rowData[1];
-
-  if (!privateId) return;
-
-  const publicId = getPublicId(privateId);
-  const userName = getDisplayNameFromId(privateId) || 'Anónimo';
-  const params   = getMysteryParams(mysteryId);
-  if (!params) return;
-
-  const allCheckboxes = sheet
-    .getRange(2, 1, Math.max(sheet.getLastRow() - 1, 1), 1)
-    .getValues();
-  const position = allCheckboxes.filter(r => r[0] === true).length;
-  const points   = calcularPuntos(position, params, submittedAt);
-
-  actualizarPrincipal(privateId, publicId, userName, mysteryId, points);
-  actualizarPrivado(privateId, publicId, userName);
+// Devuelve el título bonito, con el ID en tooltip; muestra ID si no se encontró título
+function mystTitle(id) {
+    if (!id) return '—';
+    const t = mysteryTitleMap[id];
+    return t ? `<span title="ID: ${esc(id)}" style="cursor:default;">${esc(t)}</span>`
+             : `<span style="color:#8b949e;font-size:11px;">${esc(id)}</span>`;
 }
 
-
-// ─── PROCESADO DE RESPUESTA CORRECTA (hoja unificada) ─────────────────────────
-
-function _procesarRespuestaCorrecta(row, rowData, sheet) {
-  const mysteryId   = rowData[R_COL_MISTERIO]?.toString()?.trim();
-  const privateId   = rowData[R_COL_PRIVADO_ID]?.toString()?.trim();
-  const submittedAt = rowData[R_COL_TIMESTAMP];
-  const comentario  = rowData[R_COL_COMENTARIO]?.toString()?.trim() || '';
-
-  if (!mysteryId || !privateId) {
-    Logger.log('⚠️ Fila ' + row + ' sin id_misterio o id_privado');
-    return;
-  }
-
-  const publicId = getPublicId(privateId);
-  const userName = getDisplayNameFromId(privateId) || 'Anónimo';
-  const params   = getMysteryParams(mysteryId);
-
-  if (!params) {
-    SpreadsheetApp.getUi().alert(
-      '⚠️ No hay parámetros para "' + mysteryId + '".\n' +
-      'Añádelos en la hoja "' + SHEET_PARAMS + '" y vuelve a marcar.'
-    );
-    return;
-  }
-
-  // Posición: cuántos TRUE hay en col H (ya incluye el actual)
-  const allChecks = sheet
-    .getRange(2, R_COL_CORRECTO + 1, Math.max(sheet.getLastRow() - 1, 1), 1)
-    .getValues();
-  const position = allChecks.filter(r => r[0] === true).length;
-
-  const points = calcularPuntos(position, params, submittedAt);
-
-  actualizarPrincipal(privateId, publicId, userName, mysteryId, points);
-  actualizarPrivado(privateId, publicId, userName);
-
-  // Notificación automática al usuario
-  const msgBase = '¡Tu respuesta al misterio "' + mysteryId + '" ha sido revisada! ';
-  const msgPts  = 'Has ganado ' + points + ' punto' + (points === 1 ? '' : 's') + '.';
-  const msgComt = comentario ? '\n💬 Comentario: ' + comentario : '';
-  escribirNotificacion(
-    publicId,
-    '✅ Respuesta correcta — ' + mysteryId,
-    msgBase + msgPts + msgComt,
-    'respuesta',
-    '#mystery=' + mysteryId
-  );
-
-  Logger.log('✅ ' + userName + ' — ' + mysteryId + ' — #' + position + ' — ' + points + ' pts');
+// Versión texto plano (para el <title> del modal, etc.)
+function mystTitlePlain(id) {
+    return id ? (mysteryTitleMap[id] || id) : '—';
 }
 
-// Llamada desde admin_respuestas (vía doGet con token) para marcar correcto
-function marcarCorrecto(row, comentario) {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_RESPUESTAS);
-  if (!sheet) return { ok: false, error: 'Hoja RESPUESTAS no encontrada' };
+loadMysteryTitles();
 
-  const rowData = sheet.getRange(row, 1, 1, 9).getValues()[0];
+// ═══════════════════════════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════════════════════════
+let allResponses = [];
+let currentReviewRow = null;
 
-  // Escribir checkbox y comentario
-  sheet.getRange(row, R_COL_CORRECTO + 1).setValue(true);
-  if (comentario) sheet.getRange(row, R_COL_COMENTARIO + 1).setValue(comentario);
+// ═══════════════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════════════
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios'].forEach(t => {
+            document.getElementById('tab-' + t).classList.toggle('hidden', t !== btn.dataset.tab);
+        });
+    });
+});
 
-  // Procesar
-  rowData[R_COL_CORRECTO]  = true;
-  rowData[R_COL_COMENTARIO] = comentario || '';
-  _procesarRespuestaCorrecta(row, rowData, sheet);
-
-  return { ok: true };
+// ═══════════════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════════════
+function toast(msg, ok = true) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast' + (ok ? '' : ' error');
+    setTimeout(() => t.classList.add('hidden'), 3000);
 }
 
-// Marcar como incorrecta y notificar
-function marcarIncorrecto(row, comentario) {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_RESPUESTAS);
-  if (!sheet) return { ok: false, error: 'Hoja RESPUESTAS no encontrada' };
+// ═══════════════════════════════════════════════════════════════════
+// CARGAR RESPUESTAS
+// ═══════════════════════════════════════════════════════════════════
+async function loadResponses() {
+    const token = document.getElementById('admin-token').value.trim();
+    if (!token) { toast('Introduce el token admin', false); return; }
 
-  const rowData   = sheet.getRange(row, 1, 1, 9).getValues()[0];
-  const privateId = rowData[R_COL_PRIVADO_ID]?.toString()?.trim();
-  const mysteryId = rowData[R_COL_MISTERIO]?.toString()?.trim();
+    document.getElementById('responses-list').innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
 
-  if (comentario) sheet.getRange(row, R_COL_COMENTARIO + 1).setValue(comentario);
-
-  const publicId = getPublicId(privateId);
-  const msgComt  = comentario ? '\n💬 Comentario: ' + comentario : '';
-
-  escribirNotificacion(
-    publicId,
-    '❌ Respuesta incorrecta — ' + mysteryId,
-    'Tu respuesta al misterio "' + mysteryId + '" no era correcta. ¡Sigue intentándolo!' + msgComt,
-    'respuesta',
-    '#mystery=' + mysteryId
-  );
-
-  return { ok: true };
+    try {
+        // Asegurarse de que los títulos estén cargados antes de renderizar
+        if (!Object.keys(mysteryTitleMap).length) await loadMysteryTitles();
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=responses&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        allResponses = data;
+        populateMisterioFilter();
+        renderResponses();
+        toast('✅ ' + data.length + ' respuestas cargadas');
+    } catch(e) { toast('Error de conexión: ' + e.message, false); }
 }
 
+document.getElementById('load-btn').addEventListener('click', loadResponses);
 
-// ─── NOTIFICACIONES ───────────────────────────────────────────────────────────
-
-function escribirNotificacion(idPublico, titulo, mensaje, tipo, link) {
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  let hoja   = ss.getSheetByName(SHEET_NOTIFICACIONES);
-  if (!hoja) {
-    hoja = ss.insertSheet(SHEET_NOTIFICACIONES);
-    hoja.getRange(1, 1, 1, 7).setValues([
-      ['id_notif', 'id_publico', 'titulo', 'mensaje', 'fecha', 'tipo', 'link']
-    ]);
-    hoja.getRange(1, 1, 1, 7).setFontWeight('bold');
-  }
-
-  const id    = Date.now().toString();
-  const fecha = new Date().toISOString();
-  hoja.appendRow([id, idPublico || 'TODOS', titulo, mensaje, fecha, tipo || 'general', link || '']);
+function populateMisterioFilter() {
+    const sel = document.getElementById('filter-misterio');
+    const ids = [...new Set(allResponses.map(r => r.misterio))].filter(Boolean).sort();
+    sel.innerHTML = '<option value="">Todos los misterios</option>' +
+        ids.map(id => `<option value="${id}">${mysteryTitleMap[id] || id}</option>`).join('');
 }
 
-// Llamada manual desde el admin para enviar notificación libre
-function enviarNotificacionManual(idPublico, titulo, mensaje, tipo, link) {
-  escribirNotificacion(idPublico, titulo, mensaje, tipo, link);
-  return { ok: true };
+function getFilteredResponses() {
+    const mist   = document.getElementById('filter-misterio').value;
+    const estado = document.getElementById('filter-estado').value;
+    const user   = document.getElementById('filter-user').value.toLowerCase();
+    return allResponses.filter(r => {
+        if (mist && r.misterio !== mist) return false;
+        if (estado === 'pending'  && r.correcto !== false && r.correcto !== true && r.correcto !== null) return false;
+        if (estado === 'pending'  && r.comentario)  return false; // si tiene comentario ya fue revisada
+        if (estado === 'correct'  && r.correcto !== true) return false;
+        if (estado === 'wrong'    && (r.correcto !== false || !r.comentario)) return false;
+        if (user && !r.idPublico?.toLowerCase().includes(user) && !r.nombre?.toLowerCase().includes(user)) return false;
+        return true;
+    });
 }
 
+['filter-misterio','filter-estado','filter-user'].forEach(id => {
+    document.getElementById(id).addEventListener('input', renderResponses);
+    document.getElementById(id).addEventListener('change', renderResponses);
+});
 
-// ─── WEB APP ──────────────────────────────────────────────────────────────────
+function renderResponses() {
+    const list = document.getElementById('responses-list');
+    const data = getFilteredResponses();
+    document.getElementById('results-count').textContent = data.length + ' resultado' + (data.length === 1 ? '' : 's');
 
-function doGet(e) {
-  const p      = e.parameter || {};
-  const action = p.action   || '';
-  const token  = p.token    || '';
-  const user   = decodeURIComponent(p.user || '');
-
-  let result;
-
-  // ── Lecturas públicas (no requieren token) ──
-  if (action === 'notifs') {
-    result = _getNotifs(user);
-
-  } else if (action === 'history') {
-    result = _getHistory(user);
-
-  // ── Operaciones de admin (requieren token) ──
-  } else if (action === 'responses') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = _getAllResponses(); }
-
-  } else if (action === 'markCorrect') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = marcarCorrecto(parseInt(p.row), decodeURIComponent(p.comment || '')); }
-
-  } else if (action === 'markIncorrect') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = marcarIncorrecto(parseInt(p.row), decodeURIComponent(p.comment || '')); }
-
-  } else if (action === 'sendNotif') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else {
-      result = enviarNotificacionManual(
-        decodeURIComponent(p.user   || 'TODOS'),
-        decodeURIComponent(p.titulo || ''),
-        decodeURIComponent(p.msg    || ''),
-        decodeURIComponent(p.tipo   || 'general'),
-        decodeURIComponent(p.link   || '')
-      );
+    if (!data.length) {
+        list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin resultados con esos filtros</p>';
+        return;
     }
 
-  // ── saveExtra: guarda dificultad y opinion en la fila correcta ──
-  } else if (action === 'saveExtra') {
-    result = _saveExtra(
-      decodeURIComponent(p.misterio   || ''),
-      decodeURIComponent(p.privado    || ''),
-      decodeURIComponent(p.dificultad || ''),
-      decodeURIComponent(p.opinion    || '')
-    );
+    list.innerHTML = data.map(r => {
+        const isPending = !r.correcto && !r.comentario;
+        const isCorrect = r.correcto === true;
+        const badgeHtml = isPending
+            ? '<span class="badge badge-pending">⏳ Pendiente</span>'
+            : isCorrect
+                ? '<span class="badge badge-correct">✅ Correcta</span>'
+                : '<span class="badge badge-wrong">❌ Incorrecta</span>';
+        const fecha = (() => { try { return new Date(r.fecha).toLocaleDateString('es', {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e) { return r.fecha || ''; } })();
 
-  // ── getNotifsSent: devuelve notificaciones enviadas (admin) ──
-  } else if (action === 'getNotifsSent') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = _getNotifsSent(p.tipo || '', decodeURIComponent(p.user || '')); }
-
-  // ── saveComment: actualiza solo el comentario de una fila ──
-  } else if (action === 'saveComment') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = _saveComment(parseInt(p.row), decodeURIComponent(p.comment || '')); }
-
-  // ── saveFeedback: guarda una entrada de feedback del usuario ──
-  } else if (action === 'saveFeedback') {
-    result = _saveFeedback(
-      decodeURIComponent(p.user       || ''),
-      decodeURIComponent(p.valoracion || ''),
-      decodeURIComponent(p.tipo       || ''),
-      decodeURIComponent(p.texto      || '')
-    );
-
-  // ── getFeedback: devuelve todas las entradas de feedback (admin) ──
-  } else if (action === 'getFeedback') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = _getFeedback(decodeURIComponent(p.tipo || '')); }
-
-  // ── getUsers: devuelve todos los usuarios con stats (admin) ──
-  } else if (action === 'getUsers') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = _getUsers(); }
-
-  // ── adjustPoints: ajusta puntos de un usuario en una columna ──
-  } else if (action === 'adjustPoints') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = _adjustPoints(
-      decodeURIComponent(p.idPublico   || ''),
-      decodeURIComponent(p.mysteryId   || 'ajuste_manual'),
-      parseFloat(p.delta || 0)
-    ); }
-
-  // ── getUserDetail: historial + notifs + feedback de un usuario ──
-  } else if (action === 'getUserDetail') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = _getUserDetail(decodeURIComponent(p.idPublico || '')); }
-
-  // ── getMysteryStats: estadísticas por misterio (admin) ──
-  } else if (action === 'getMysteryStats') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = _getMysteryStats(); }
-
-  // ── getScoringInfo: parámetros de puntuación de un misterio ──
-  } else if (action === 'getScoringInfo') {
-    result = _getScoringInfo(decodeURIComponent(p.mysteryId || ''));
-
-  // ── getGroups: devuelve los grupos de envío (admin) ──
-  } else if (action === 'getGroups') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = _getGroups(); }
-
-  // ── saveGroup: crea o actualiza un grupo ──
-  } else if (action === 'saveGroup') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = _saveGroup(
-      decodeURIComponent(p.nombre  || ''),
-      decodeURIComponent(p.members || ''),
-      decodeURIComponent(p.id      || '')
-    ); }
-
-  // ── deleteGroup: elimina un grupo ──
-  } else if (action === 'deleteGroup') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = _deleteGroup(decodeURIComponent(p.id || '')); }
-
-  // ── sendNotifToGroup: envía notificación a todos los miembros de un grupo ──
-  } else if (action === 'sendNotifToGroup') {
-    if (!_isAdmin(token)) { result = { error: 'No autorizado' }; }
-    else { result = _sendNotifToGroup(
-      decodeURIComponent(p.groupId || ''),
-      decodeURIComponent(p.titulo  || ''),
-      decodeURIComponent(p.msg     || ''),
-      decodeURIComponent(p.tipo    || 'general'),
-      decodeURIComponent(p.link    || '')
-    ); }
-
-  } else {
-    result = { error: 'Acción desconocida: ' + action };
-  }
-
-  return ContentService
-    .createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
+        return `<div class="row-item px-4 py-4 cursor-pointer" data-row="${r.row}" onclick="openReview(${r.row})">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div class="flex items-center gap-3 flex-wrap">
+                    ${badgeHtml}
+                    <span class="text-sm font-bold text-white">${esc(r.nombre || r.idPublico || '?')}</span>
+                    <span style="font-size:11px;color:#8b949e;">${esc(r.idPublico || '')}</span>
+                    <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#79c0ff;">${mystTitle(r.misterio)}</span>
+                </div>
+                <span style="font-size:11px;color:#6b7280;">${fecha}</span>
+            </div>
+            <p class="text-sm text-gray-300 mt-2 line-clamp-2">${esc(r.solucion || '')}</p>
+            ${r.comentario ? `<p style="font-size:11px;color:#8b949e;margin-top:4px;">💬 ${esc(r.comentario)}</p>` : ''}
+        </div>`;
+    }).join('');
 }
 
-function _isAdmin(token) {
-  return token === ADMIN_TOKEN;
+// ═══════════════════════════════════════════════════════════════════
+// MODAL DE REVISIÓN
+// ═══════════════════════════════════════════════════════════════════
+function openReview(row) {
+    const r = allResponses.find(x => x.row === row);
+    if (!r) return;
+    currentReviewRow = row;
+
+    const isMarked = r.correcto === true || (r.correcto === false && r.comentario);
+
+    document.getElementById('review-title').textContent = `Revisando: ${r.nombre || r.idPublico} — ${mystTitlePlain(r.misterio)}`;
+    document.getElementById('review-comment').value = r.comentario || '';
+
+    const fecha = (() => { try { return new Date(r.fecha).toLocaleString('es'); } catch(e) { return r.fecha || ''; } })();
+
+    document.getElementById('review-content').innerHTML = `
+        <div class="grid grid-cols-2 gap-3">
+            <div style="background:#0d1117;border-radius:8px;padding:12px;">
+                <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:4px;">Usuario</p>
+                <p class="text-sm text-white font-bold">${esc(r.nombre || '?')}</p>
+                <p style="font-size:11px;color:#8b949e;">${esc(r.idPublico || '')}</p>
+            </div>
+            <div style="background:#0d1117;border-radius:8px;padding:12px;">
+                <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:4px;">Misterio</p>
+                <p class="text-sm text-white font-bold">${esc(mystTitlePlain(r.misterio))}</p>
+                <p style="font-size:10px;color:#484f58;margin-top:2px;">${esc(r.misterio || '')}</p>
+                <p style="font-size:11px;color:#6b7280;margin-top:2px;">${fecha}</p>
+            </div>
+        </div>
+        ${isMarked ? `<div style="background:${r.correcto ? '#052e16' : '#450a0a'};border-radius:8px;padding:10px;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;">${r.correcto ? '✅' : '❌'}</span>
+            <span style="font-size:13px;font-weight:700;color:${r.correcto ? '#4ade80' : '#f87171'};">Ya marcada como ${r.correcto ? 'correcta' : 'incorrecta'}</span>
+        </div>` : ''}
+        <div style="background:#0d1117;border-radius:8px;padding:12px;">
+            <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Solución propuesta</p>
+            <p class="text-sm text-white">${esc(r.solucion || '—')}</p>
+        </div>
+        ${r.explicacion ? `<div style="background:#0d1117;border-radius:8px;padding:12px;">
+            <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Explicación</p>
+            <p class="text-sm text-gray-300">${esc(r.explicacion)}</p>
+        </div>` : ''}
+        ${r.dificultad ? `<div style="font-size:12px;color:#8b949e;">Dificultad percibida: <span style="color:#e6edf3;">${esc(r.dificultad)}</span></div>` : ''}
+        ${r.opinion ? `<div style="background:#0d1117;border-radius:8px;padding:12px;">
+            <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Opinión/Sugerencia</p>
+            <p class="text-sm text-gray-300">${esc(r.opinion)}</p>
+        </div>` : ''}
+    `;
+
+    // Mostrar botones según estado
+    document.getElementById('review-btns-pending').classList.toggle('hidden', isMarked);
+    document.getElementById('review-btns-marked').classList.toggle('hidden', !isMarked);
+    document.getElementById('review-btns-remark').classList.add('hidden');
+
+    document.getElementById('review-modal').classList.remove('hidden');
 }
 
-function _getNotifs(idPublico) {
-  if (!idPublico) return [];
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(SHEET_NOTIFICACIONES);
-  if (!hoja || hoja.getLastRow() < 2) return [];
-
-  const data = hoja.getRange(2, 1, hoja.getLastRow() - 1, 7).getValues();
-  return data
-    .filter(r => r[N_COL_USER] === idPublico || r[N_COL_USER] === 'TODOS')
-    .map(r => ({
-      id      : r[N_COL_ID]?.toString(),
-      user    : r[N_COL_USER]?.toString(),
-      titulo  : r[N_COL_TITULO]?.toString(),
-      mensaje : r[N_COL_MENSAJE]?.toString(),
-      fecha   : r[N_COL_FECHA] instanceof Date ? r[N_COL_FECHA].toISOString() : r[N_COL_FECHA]?.toString(),
-      tipo    : r[N_COL_TIPO]?.toString(),
-      link    : r[N_COL_LINK]?.toString()
-    }))
-    .sort((a, b) => b.fecha.localeCompare(a.fecha))  // más recientes primero
-    .slice(0, 50);  // máximo 50 notificaciones
+function closeReviewModal() {
+    document.getElementById('review-modal').classList.add('hidden');
+    currentReviewRow = null;
 }
 
-function _getHistory(idPublico) {
-  if (!idPublico) return [];
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(SHEET_RESPUESTAS);
-  if (!hoja || hoja.getLastRow() < 2) return [];
+async function sendReview(action) {
+    if (!currentReviewRow) return;
+    const token   = document.getElementById('admin-token').value.trim();
+    const comment = encodeURIComponent(document.getElementById('review-comment').value.trim());
+    // Identify which button triggered this (could be pending or remark buttons)
+    const remarkVisible = !document.getElementById('review-btns-remark').classList.contains('hidden');
+    const btn = remarkVisible
+        ? document.getElementById(action === 'markCorrect' ? 'review-correct-remark-btn' : 'review-wrong-remark-btn')
+        : document.getElementById(action === 'markCorrect' ? 'review-correct-btn' : 'review-wrong-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳...';
 
-  const data = hoja.getRange(2, 1, hoja.getLastRow() - 1, 9).getValues();
-  return data
-    .map((r, i) => ({ r, rowNum: i + 2 }))
-    .filter(({ r }) => {
-      const privId = r[R_COL_PRIVADO_ID]?.toString()?.trim();
-      return getPublicId(privId) === idPublico;
-    })
-    .map(({ r, rowNum }) => ({
-      row         : rowNum,
-      fecha       : r[R_COL_TIMESTAMP] instanceof Date ? r[R_COL_TIMESTAMP].toISOString() : r[R_COL_TIMESTAMP]?.toString(),
-      misterio    : r[R_COL_MISTERIO]?.toString(),
-      solucion    : r[R_COL_SOLUCION]?.toString(),
-      explicacion : r[R_COL_EXPLICACION]?.toString(),
-      dificultad  : r[R_COL_DIFICULTAD]?.toString(),
-      opinion     : r[R_COL_OPINION]?.toString(),
-      correcto    : r[R_COL_CORRECTO] === true,
-      comentario  : r[R_COL_COMENTARIO]?.toString() || ''
-    }))
-    .sort((a, b) => b.fecha.localeCompare(a.fecha));
-}
-
-function _getAllResponses() {
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(SHEET_RESPUESTAS);
-  if (!hoja || hoja.getLastRow() < 2) return [];
-
-  const data = hoja.getRange(2, 1, hoja.getLastRow() - 1, 9).getValues();
-  return data.map((r, i) => ({
-    row         : i + 2,  // número de fila en la hoja (para poder marcar desde admin)
-    fecha       : r[R_COL_TIMESTAMP] instanceof Date ? r[R_COL_TIMESTAMP].toISOString() : r[R_COL_TIMESTAMP]?.toString(),
-    misterio    : r[R_COL_MISTERIO]?.toString(),
-    idPublico   : getPublicId(r[R_COL_PRIVADO_ID]?.toString()?.trim()),
-    nombre      : getDisplayNameFromId(r[R_COL_PRIVADO_ID]?.toString()?.trim()) || '?',
-    solucion    : r[R_COL_SOLUCION]?.toString(),
-    explicacion : r[R_COL_EXPLICACION]?.toString(),
-    dificultad  : r[R_COL_DIFICULTAD]?.toString(),
-    opinion     : r[R_COL_OPINION]?.toString(),
-    correcto    : r[R_COL_CORRECTO] === true,
-    comentario  : r[R_COL_COMENTARIO]?.toString() || ''
-  }));
-}
-
-
-// ─── FUNCIONES REUTILIZADAS DE V1 ─────────────────────────────────────────────
-
-function getPublicId(privateId) {
-  if (!privateId) return '';
-  if (privateId.includes('~')) {
-    const parts = privateId.split('~');
-    return parts[0] + '#' + parts[3].slice(0, 4);
-  }
-  const parts = privateId.split('-');
-  return parts.length === 6 ? parts[5] : privateId;
-}
-
-function getDisplayNameFromId(privateId) {
-  if (!privateId || !privateId.includes('~')) return '';
-  try {
-    const enc = privateId.split('~')[1];
-    const b64 = enc.replace(/-/g, '+').replace(/_/g, '/');
-    return Utilities.newBlob(Utilities.base64Decode(b64)).getDataAsString('UTF-8');
-  } catch(e) { return ''; }
-}
-
-function getMysteryParams(mysteryId) {
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(SHEET_PARAMS);
-  if (!hoja) return null;
-
-  const data = hoja.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][PARAM_COL_ID]?.toString()?.trim() !== mysteryId) continue;
-    const clueDates = [];
-    for (let j = PARAM_COL_CLUES_START; j < data[i].length; j++) {
-      const v = data[i][j];
-      if (v) clueDates.push(v instanceof Date ? v : new Date(v));
-    }
-    const lastClueRaw = data[i][PARAM_COL_LAST_CLUE];
-    return {
-      difficulty  : parseFloat(data[i][PARAM_COL_DIFFICULTY]) || 2,
-      utdHours    : parseFloat(data[i][PARAM_COL_UTD])        || 1,
-      ptsSaved    : parseFloat(data[i][PARAM_COL_PTS_SAVED])  || 2,
-      lastClueDate: lastClueRaw ? (lastClueRaw instanceof Date ? lastClueRaw : new Date(lastClueRaw)) : null,
-      clueDates
-    };
-  }
-  return null;
-}
-
-function calcularPuntos(position, params, submittedAt) {
-  const subTs   = submittedAt instanceof Date ? submittedAt : new Date(submittedAt);
-  const basePts = position <= RANK_POINTS.length ? RANK_POINTS[position - 1] : RANK_REST;
-  const term1   = basePts * params.difficulty;
-
-  let savedCount = 0;
-  params.clueDates.forEach(d => { if (d > subTs) savedCount++; });
-  const term2 = savedCount * params.ptsSaved;
-
-  let term3 = 0;
-  if (params.lastClueDate && subTs > params.lastClueDate) {
-    const diffMs   = subTs.getTime() - params.lastClueDate.getTime();
-    const utdMs    = params.utdHours * 3600000;
-    const totalUtd = Math.floor(diffMs / utdMs);
-    term3 = Math.max(0, totalUtd - 1);
-  }
-
-  return Math.max(1, term1 + term2 - term3);
-}
-
-function actualizarPrincipal(privateId, publicId, userName, mysteryId, points) {
-  const ss        = SpreadsheetApp.getActiveSpreadsheet();
-  const principal = ss.getSheetByName(SHEET_PRINCIPAL);
-  if (!principal) return;
-
-  const data    = principal.getDataRange().getValues();
-  const headers = data[0];
-
-  let mystColIdx = headers.indexOf(mysteryId);
-  if (mystColIdx === -1) {
-    mystColIdx = principal.getLastColumn();
-    principal.getRange(1, mystColIdx + 1).setValue(mysteryId);
-    headers.push(mysteryId);
-    data.forEach(row => row.push(''));
-  }
-
-  let userRowIdx = -1;
-  for (let i = 2; i < data.length; i++) {
-    if (data[i][P_COL_PUBLIC_ID]?.toString()?.trim() === publicId) { userRowIdx = i; break; }
-  }
-
-  if (userRowIdx === -1) {
-    const newSheetRow = principal.getLastRow() + 1;
-    principal.getRange(newSheetRow, P_COL_PUBLIC_ID + 1).setValue(publicId);
-    principal.getRange(newSheetRow, P_COL_NAME    + 1).setValue(userName);
-    principal.getRange(newSheetRow, P_COL_TOTAL_PTS + 1)
-      .setFormula(`=IFERROR(SUM(D${newSheetRow}:ZZ${newSheetRow});0)`);
-    principal.getRange(newSheetRow, mystColIdx + 1).setValue(points);
-  } else {
-    const sheetRow    = userRowIdx + 1;
-    principal.getRange(sheetRow, mystColIdx + 1).setValue(points);
-    const currentName = data[userRowIdx][P_COL_NAME]?.toString()?.trim();
-    if (!currentName || currentName === 'Anónimo') {
-      principal.getRange(sheetRow, P_COL_NAME + 1).setValue(userName);
-    }
-  }
-}
-
-function actualizarPrivado(privateId, publicId, userName) {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
-  let privado = ss.getSheetByName(SHEET_PRIVADO);
-  if (!privado) {
-    privado = ss.insertSheet(SHEET_PRIVADO);
-    privado.getRange(1, 1, 1, 4).setValues([['ID_PRIVADO','ID_PUBLICO','Nombre_Display','Fecha_Alta']]);
-  }
-  const data = privado.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0]?.toString()?.trim() === privateId) return;
-  }
-  privado.appendRow([privateId, publicId, getDisplayNameFromId(privateId) || userName, new Date()]);
-}
-
-
-// ─── UTILIDADES EXTRA ─────────────────────────────────────────────────────────
-
-function crearEstructuraBase() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  // PRINCIPAL
-  let principal = ss.getSheetByName(SHEET_PRINCIPAL);
-  if (!principal) {
-    principal = ss.insertSheet(SHEET_PRINCIPAL);
-    principal.getRange(1, 1, 1, 3).setValues([['ID_PUBLICO','Nombre','Puntos_Total']]);
-    principal.getRange(2, 1, 1, 3).setValues([['(explicaciones ganador →)','','']]);
-    principal.setFrozenRows(1);
-    principal.getRange(1,1,1,3).setFontWeight('bold').setBackground('#1a237e').setFontColor('#fff');
-  }
-
-  // PARÁMETROS
-  let params = ss.getSheetByName(SHEET_PARAMS);
-  if (!params) {
-    params = ss.insertSheet(SHEET_PARAMS);
-    params.getRange(1,1,1,6).setValues([[
-      'ID_Misterio','Dificultad (1/2/3)','UTD_horas','Fecha_Ultima_Pista','Pts_Pista_Ahorrada','Fecha_Pista_1...'
-    ]]);
-    params.getRange(1,1,1,6).setFontWeight('bold');
-  }
-
-  // NOTIFICACIONES
-  let notifs = ss.getSheetByName(SHEET_NOTIFICACIONES);
-  if (!notifs) {
-    notifs = ss.insertSheet(SHEET_NOTIFICACIONES);
-    notifs.getRange(1,1,1,7).setValues([['id_notif','id_publico','titulo','mensaje','fecha','tipo','link']]);
-    notifs.getRange(1,1,1,7).setFontWeight('bold');
-  }
-
-  // FEEDBACK
-  let feedback = ss.getSheetByName(SHEET_FEEDBACK);
-  if (!feedback) {
-    feedback = ss.insertSheet(SHEET_FEEDBACK);
-    feedback.getRange(1,1,1,5).setValues([['id_feedback','id_publico','valoracion','tipo','texto']]);
-    feedback.getRange(1,1,1,5).setFontWeight('bold');
-  }
-
-  // GRUPOS
-  let grupos = ss.getSheetByName(SHEET_GRUPOS);
-  if (!grupos) {
-    grupos = ss.insertSheet(SHEET_GRUPOS);
-    grupos.getRange(1,1,1,3).setValues([['id_grupo','nombre','miembros']]);
-    grupos.getRange(1,1,1,3).setFontWeight('bold');
-  }
-
-  SpreadsheetApp.getUi().alert('✅ Estructura creada. Ejecuta instalarTrigger() y luego despliega como Web App.');
-}
-
-function setWinnerExplanation(mysteryId, explanation) {
-  const ss        = SpreadsheetApp.getActiveSpreadsheet();
-  const principal = ss.getSheetByName(SHEET_PRINCIPAL);
-  if (!principal) return;
-  const headers = principal.getRange(1, 1, 1, principal.getLastColumn()).getValues()[0];
-  const colIdx  = headers.indexOf(mysteryId);
-  if (colIdx === -1) return;
-  principal.getRange(2, colIdx + 1).setValue(explanation);
-}
-
-
-// ─── NUEVAS FUNCIONES ──────────────────────────────────────────────────────────
-
-// Guarda dificultad y opinion en la fila más reciente que coincide con misterio+privado
-function _saveExtra(mysteryId, privateId, dificultad, opinion) {
-  if (!mysteryId || !privateId) return { ok: false, error: 'Faltan parámetros' };
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(SHEET_RESPUESTAS);
-  if (!hoja || hoja.getLastRow() < 2) return { ok: false, error: 'Sin datos' };
-
-  const data = hoja.getRange(2, 1, hoja.getLastRow() - 1, 7).getValues();
-  let targetRow = -1;
-  let latestTs  = null;
-  for (let i = 0; i < data.length; i++) {
-    const rowMist = data[i][R_COL_MISTERIO]?.toString()?.trim();
-    const rowPriv = data[i][R_COL_PRIVADO_ID]?.toString()?.trim();
-    if (rowMist === mysteryId && rowPriv === privateId) {
-      const ts = data[i][R_COL_TIMESTAMP];
-      const d  = ts instanceof Date ? ts : new Date(ts);
-      if (!latestTs || d > latestTs) { latestTs = d; targetRow = i + 2; }
-    }
-  }
-  if (targetRow === -1) return { ok: false, error: 'Fila no encontrada' };
-  if (dificultad) hoja.getRange(targetRow, R_COL_DIFICULTAD + 1).setValue(dificultad);
-  if (opinion)    hoja.getRange(targetRow, R_COL_OPINION    + 1).setValue(opinion);
-  return { ok: true };
-}
-
-// Devuelve todas las notificaciones enviadas, con filtros opcionales
-function _getNotifsSent(tipoFilter, userFilter) {
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(SHEET_NOTIFICACIONES);
-  if (!hoja || hoja.getLastRow() < 2) return [];
-  const data = hoja.getRange(2, 1, hoja.getLastRow() - 1, 7).getValues();
-  return data
-    .map(r => ({
-      id      : r[N_COL_ID]?.toString(),
-      user    : r[N_COL_USER]?.toString(),
-      titulo  : r[N_COL_TITULO]?.toString(),
-      mensaje : r[N_COL_MENSAJE]?.toString(),
-      fecha   : r[N_COL_FECHA] instanceof Date ? r[N_COL_FECHA].toISOString() : r[N_COL_FECHA]?.toString(),
-      tipo    : r[N_COL_TIPO]?.toString(),
-      link    : r[N_COL_LINK]?.toString()
-    }))
-    .filter(r => {
-      if (tipoFilter && r.tipo !== tipoFilter) return false;
-      if (userFilter && r.user !== userFilter) return false;
-      return true;
-    })
-    .sort((a, b) => b.fecha.localeCompare(a.fecha));
-}
-
-// Actualiza solo el comentario de una fila sin cambiar veredicto
-function _saveComment(row, comment) {
-  if (!row || row < 2) return { ok: false, error: 'Fila inválida' };
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(SHEET_RESPUESTAS);
-  if (!hoja) return { ok: false, error: 'Hoja no encontrada' };
-  hoja.getRange(row, R_COL_COMENTARIO + 1).setValue(comment || '');
-  return { ok: true };
-}
-
-// Guarda una entrada de feedback libre
-function _saveFeedback(idPublico, valoracion, tipo, texto) {
-  if (!texto && !valoracion) return { ok: false, error: 'Sin contenido' };
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  let hoja   = ss.getSheetByName(SHEET_FEEDBACK);
-  if (!hoja) {
-    hoja = ss.insertSheet(SHEET_FEEDBACK);
-    hoja.getRange(1,1,1,5).setValues([['id_feedback','id_publico','valoracion','tipo','texto']]);
-    hoja.getRange(1,1,1,5).setFontWeight('bold');
-  }
-  const id = Date.now().toString();
-  hoja.appendRow([id, idPublico || 'anónimo', valoracion || '', tipo || 'general', texto || '']);
-  return { ok: true };
-}
-
-// Devuelve todas las entradas de feedback
-function _getFeedback(tipoFilter) {
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(SHEET_FEEDBACK);
-  if (!hoja || hoja.getLastRow() < 2) return [];
-  const data = hoja.getRange(2, 1, hoja.getLastRow() - 1, 5).getValues();
-  return data
-    .map(r => ({
-      id        : r[0]?.toString(),
-      user      : r[1]?.toString(),
-      valoracion: r[2]?.toString(),
-      tipo      : r[3]?.toString(),
-      texto     : r[4]?.toString(),
-      fecha     : (() => { try { return new Date(parseInt(r[0])).toISOString(); } catch(e){ return ''; } })()
-    }))
-    .filter(r => !tipoFilter || r.tipo === tipoFilter)
-    .sort((a, b) => b.id.localeCompare(a.id));
-}
-
-// ─── USUARIOS ─────────────────────────────────────────────────────────────────
-
-function _getUsers() {
-  const ss        = SpreadsheetApp.getActiveSpreadsheet();
-  const principal = ss.getSheetByName(SHEET_PRINCIPAL);
-  if (!principal || principal.getLastRow() < 3) return [];
-
-  const data    = principal.getDataRange().getValues();
-  const headers = data[0]; // row 1: header, ids from col D onwards
-  const mystIds = headers.slice(P_COL_MYST_START); // mystery IDs (col D+)
-
-  const users = [];
-  for (let i = 2; i < data.length; i++) { // skip row 1 (header) and row 2 (explanations)
-    const row     = data[i];
-    const idPub   = row[P_COL_PUBLIC_ID]?.toString()?.trim();
-    if (!idPub) continue;
-    const nombre  = row[P_COL_NAME]?.toString()?.trim() || '?';
-    const total   = parseFloat(row[P_COL_TOTAL_PTS]) || 0;
-    const misterios = mystIds
-      .map((id, j) => ({ id: id?.toString(), puntos: parseFloat(row[P_COL_MYST_START + j]) || 0 }))
-      .filter(m => m.id && m.puntos > 0);
-    users.push({ idPublico: idPub, nombre, total, misteriosSueltos: misterios.length, misterios });
-  }
-  return users.sort((a, b) => b.total - a.total);
-}
-
-function _adjustPoints(idPublico, mysteryId, delta) {
-  if (!idPublico || !delta) return { ok: false, error: 'Parámetros inválidos' };
-  const ss        = SpreadsheetApp.getActiveSpreadsheet();
-  const principal = ss.getSheetByName(SHEET_PRINCIPAL);
-  if (!principal) return { ok: false, error: 'Sin hoja PRINCIPAL' };
-
-  const data    = principal.getDataRange().getValues();
-  const headers = data[0];
-
-  // Buscar o crear columna del misterio
-  let mystColIdx = headers.indexOf(mysteryId);
-  if (mystColIdx === -1) {
-    mystColIdx = principal.getLastColumn();
-    principal.getRange(1, mystColIdx + 1).setValue(mysteryId);
-  }
-
-  // Buscar fila del usuario
-  let userRowIdx = -1;
-  for (let i = 2; i < data.length; i++) {
-    if (data[i][P_COL_PUBLIC_ID]?.toString()?.trim() === idPublico) { userRowIdx = i; break; }
-  }
-  if (userRowIdx === -1) return { ok: false, error: 'Usuario no encontrado' };
-
-  const sheetRow = userRowIdx + 1;
-  const current  = parseFloat(data[userRowIdx][mystColIdx]) || 0;
-  const newVal   = Math.max(0, current + delta);
-  principal.getRange(sheetRow, mystColIdx + 1).setValue(newVal);
-
-  // Total recalculado por fórmula automática (SUM de la fila)
-  return { ok: true, newVal };
-}
-
-function _getUserDetail(idPublico) {
-  if (!idPublico) return { error: 'ID requerido' };
-
-  // Historial de respuestas
-  const historia = _getHistory(idPublico);
-
-  // Notificaciones recibidas
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
-  const notifHoja = ss.getSheetByName(SHEET_NOTIFICACIONES);
-  let notifs = [];
-  if (notifHoja && notifHoja.getLastRow() >= 2) {
-    const nData = notifHoja.getRange(2, 1, notifHoja.getLastRow() - 1, 7).getValues();
-    notifs = nData
-      .filter(r => r[N_COL_USER]?.toString()?.trim() === idPublico || r[N_COL_USER]?.toString()?.trim() === 'TODOS')
-      .map(r => ({
-        id     : r[N_COL_ID]?.toString(),
-        titulo : r[N_COL_TITULO]?.toString(),
-        mensaje: r[N_COL_MENSAJE]?.toString(),
-        fecha  : r[N_COL_FECHA] instanceof Date ? r[N_COL_FECHA].toISOString() : r[N_COL_FECHA]?.toString(),
-        tipo   : r[N_COL_TIPO]?.toString(),
-        link   : r[N_COL_LINK]?.toString()
-      }))
-      .sort((a, b) => b.fecha.localeCompare(a.fecha))
-      .slice(0, 30);
-  }
-
-  // Feedback enviado
-  const fbHoja = ss.getSheetByName(SHEET_FEEDBACK);
-  let feedback = [];
-  if (fbHoja && fbHoja.getLastRow() >= 2) {
-    const fbData = fbHoja.getRange(2, 1, fbHoja.getLastRow() - 1, 5).getValues();
-    feedback = fbData
-      .filter(r => r[1]?.toString()?.trim() === idPublico)
-      .map(r => ({
-        id        : r[0]?.toString(),
-        valoracion: r[2]?.toString(),
-        tipo      : r[3]?.toString(),
-        texto     : r[4]?.toString(),
-        fecha     : (() => { try { return new Date(parseInt(r[0])).toISOString(); } catch(e){ return ''; } })()
-      }))
-      .sort((a, b) => b.id.localeCompare(a.id));
-  }
-
-  // Stats de PRINCIPAL
-  const principal = ss.getSheetByName(SHEET_PRINCIPAL);
-  let userInfo = { idPublico, nombre: '?', total: 0, misterios: [] };
-  if (principal && principal.getLastRow() >= 3) {
-    const pData    = principal.getDataRange().getValues();
-    const pHeaders = pData[0];
-    for (let i = 2; i < pData.length; i++) {
-      if (pData[i][P_COL_PUBLIC_ID]?.toString()?.trim() === idPublico) {
-        userInfo.nombre   = pData[i][P_COL_NAME]?.toString()?.trim() || '?';
-        userInfo.total    = parseFloat(pData[i][P_COL_TOTAL_PTS]) || 0;
-        userInfo.sheetRow = i + 1;
-        userInfo.misterios = pHeaders.slice(P_COL_MYST_START)
-          .map((id, j) => ({ id: id?.toString(), puntos: parseFloat(pData[i][P_COL_MYST_START + j]) || 0 }))
-          .filter(m => m.id && m.puntos > 0);
-        break;
-      }
-    }
-  }
-
-  return { ...userInfo, historia, notifs, feedback };
-}
-
-// ─── ESTADÍSTICAS DE MISTERIOS ────────────────────────────────────────────────
-
-function _getMysteryStats() {
-  const ss        = SpreadsheetApp.getActiveSpreadsheet();
-  const principal = ss.getSheetByName(SHEET_PRINCIPAL);
-  if (!principal || principal.getLastRow() < 3) return [];
-
-  const data    = principal.getDataRange().getValues();
-  const headers = data[0];
-  const mystIds = headers.slice(P_COL_MYST_START);
-
-  return mystIds
-    .map((id, j) => {
-      if (!id) return null;
-      const solvers = [];
-      for (let i = 2; i < data.length; i++) {
-        const pts = parseFloat(data[i][P_COL_MYST_START + j]) || 0;
-        if (pts > 0) {
-          solvers.push({
-            idPublico : data[i][P_COL_PUBLIC_ID]?.toString()?.trim(),
-            nombre    : data[i][P_COL_NAME]?.toString()?.trim() || '?',
-            puntos    : pts
-          });
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=${action}&token=${encodeURIComponent(token)}&row=${currentReviewRow}&comment=${comment}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); }
+        else {
+            toast(action === 'markCorrect' ? '✅ Marcada como correcta y puntos asignados' : '❌ Marcada como incorrecta');
+            // Actualizar localmente
+            const idx = allResponses.findIndex(r => r.row === currentReviewRow);
+            if (idx >= 0) {
+                allResponses[idx].correcto   = action === 'markCorrect';
+                allResponses[idx].comentario = decodeURIComponent(comment);
+            }
+            closeReviewModal();
+            renderResponses();
         }
-      }
-      solvers.sort((a, b) => b.puntos - a.puntos);
-      return { id: id.toString(), solvers, totalSolvers: solvers.length };
-    })
-    .filter(Boolean);
+    } catch(e) { toast('Error de conexión', false); }
+
+    btn.disabled = false;
+    btn.textContent = action === 'markCorrect' ? '✅ Correcta' : '❌ Incorrecta';
 }
 
-// Devuelve parámetros de puntuación de un misterio para que el cliente calcule pts potenciales
-function _getScoringInfo(mysteryId) {
-  if (!mysteryId) return { error: 'mysteryId requerido' };
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(SHEET_PARAMS);
-  if (!hoja || hoja.getLastRow() < 2) return { error: 'Sin datos de parámetros' };
-  const data = hoja.getRange(2, 1, hoja.getLastRow() - 1, 20).getValues();
-  for (const row of data) {
-    if (row[PARAM_COL_ID]?.toString()?.trim() === mysteryId) {
-      const clueDates = [];
-      for (let i = PARAM_COL_CLUES_START; i < row.length; i++) {
-        if (row[i]) clueDates.push(row[i] instanceof Date ? row[i].toISOString() : row[i].toString());
-      }
-      return {
-        difficulty : parseFloat(row[PARAM_COL_DIFFICULTY]) || 2,
-        utdHours   : parseFloat(row[PARAM_COL_UTD])        || 1,
-        ptsSaved   : parseFloat(row[PARAM_COL_PTS_SAVED])  || 2,
-        lastClue   : row[PARAM_COL_LAST_CLUE] instanceof Date ? row[PARAM_COL_LAST_CLUE].toISOString() : '',
-        clueDates,
-        rankPoints : RANK_POINTS,
-        rankRest   : RANK_REST
-      };
+document.getElementById('review-correct-btn').addEventListener('click', () => sendReview('markCorrect'));
+document.getElementById('review-wrong-btn').addEventListener('click',   () => sendReview('markIncorrect'));
+document.getElementById('review-correct-remark-btn').addEventListener('click', () => sendReview('markCorrect'));
+document.getElementById('review-wrong-remark-btn').addEventListener('click',   () => sendReview('markIncorrect'));
+
+// Botón "Guardar comentario" (sin cambiar veredicto)
+document.getElementById('review-save-comment-btn').addEventListener('click', async () => {
+    if (!currentReviewRow) return;
+    const token   = document.getElementById('admin-token').value.trim();
+    const comment = document.getElementById('review-comment').value.trim();
+    const btn = document.getElementById('review-save-comment-btn');
+    btn.disabled = true; btn.textContent = '⏳...';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=saveComment&token=${encodeURIComponent(token)}&row=${currentReviewRow}&comment=${encodeURIComponent(comment)}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); }
+        else {
+            toast('💾 Comentario guardado');
+            const idx = allResponses.findIndex(r => r.row === currentReviewRow);
+            if (idx >= 0) allResponses[idx].comentario = comment;
+            closeReviewModal();
+            renderResponses();
+        }
+    } catch(e) { toast('Error de conexión', false); }
+    btn.disabled = false; btn.textContent = '💾 Guardar comentario';
+});
+
+// Botón "Corregir veredicto" → muestra botones de correcto/incorrecto
+document.getElementById('review-remark-btn').addEventListener('click', () => {
+    document.getElementById('review-btns-remark').classList.remove('hidden');
+    document.getElementById('review-remark-btn').classList.add('hidden');
+});
+
+// Cerrar modal con Escape
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeReviewModal(); });
+document.getElementById('review-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeReviewModal(); });
+
+// ═══════════════════════════════════════════════════════════════════
+// NOTIFICACIONES MANUALES
+// ═══════════════════════════════════════════════════════════════════
+document.querySelectorAll('.notif-tipo-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.notif-tipo-btn').forEach(b => b.classList.remove('sel'));
+        btn.classList.add('sel');
+        document.getElementById('notif-tipo').value = btn.dataset.tipo;
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// HISTORIAL DE USUARIO
+// ═══════════════════════════════════════════════════════════════════
+document.getElementById('hist-load-btn').addEventListener('click', loadHistory);
+document.getElementById('hist-user-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadHistory(); });
+
+async function loadHistory() {
+    const user  = document.getElementById('hist-user-input').value.trim();
+    const token = document.getElementById('admin-token').value.trim();
+    if (!user)  { toast('Introduce un ID público', false); return; }
+    if (!token) { toast('Introduce el token admin', false); return; }
+
+    const list = document.getElementById('hist-list');
+    list.innerHTML = '<p style="color:#8b949e;font-size:13px;">⏳ Cargando...</p>';
+
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=history&user=${encodeURIComponent(user)}&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (data.error) { list.innerHTML = '<p style="color:#f87171;font-size:13px;">Error: ' + esc(data.error) + '</p>'; return; }
+        if (!data.length) { list.innerHTML = '<p style="color:#8b949e;font-size:13px;">Sin respuestas registradas.</p>'; return; }
+
+        list.innerHTML = data.map(r => {
+            const fecha = (() => { try { return new Date(r.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric'}); } catch(e){ return ''; }})();
+            const estado = r.correcto ? '✅ Correcta' : (r.comentario ? '❌ Incorrecta' : '⏳ Pendiente');
+            const hasReview = allResponses.find(x => x.row === r.row);
+            const clickAttr = r.row && hasReview ? `style="cursor:pointer;" onclick="openReview(${r.row})"` : '';
+            const hintClick = r.row && hasReview ? `<span style="font-size:10px;color:#388bfd;margin-left:4px;">Ver detalle →</span>` : '';
+            return `<div class="row-item" ${clickAttr} style="background:#0d1117;border-radius:8px;padding:12px;margin-bottom:8px;">
+                <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
+                    <div class="flex items-center gap-2">
+                        <span style="font-size:12px;font-weight:700;color:#79c0ff;">${esc(mystTitlePlain(r.misterio) || '?')}</span>
+                        <span style="font-size:10px;color:#484f58;">${r.misterio && mysteryTitleMap[r.misterio] ? esc(r.misterio) : ''}</span>
+                        ${hintClick}
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span style="font-size:11px;color:#6b7280;">${fecha}</span>
+                        <span style="font-size:11px;color:${r.correcto?'#4ade80':r.comentario?'#f87171':'#fb923c'}">${estado}</span>
+                    </div>
+                </div>
+                <p style="font-size:13px;color:#e6edf3;margin-bottom:4px;"><strong>Solución:</strong> ${esc(r.solucion || '—')}</p>
+                ${r.explicacion ? `<p style="font-size:12px;color:#8b949e;margin-bottom:4px;">${esc(r.explicacion)}</p>` : ''}
+                ${r.comentario ? `<p style="font-size:12px;color:#a78bfa;margin-top:4px;">💬 ${esc(r.comentario)}</p>` : ''}
+            </div>`;
+        }).join('');
+    } catch(e) { list.innerHTML = '<p style="color:#f87171;font-size:13px;">Error de conexión</p>'; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// NOTIFICACIONES ENVIADAS
+// ═══════════════════════════════════════════════════════════════════
+let allNotifsSent = [];
+
+document.getElementById('load-notifs-sent-btn').addEventListener('click', loadNotifsSent);
+
+async function loadNotifsSent() {
+    const token    = document.getElementById('admin-token').value.trim();
+    const tipoFil  = document.getElementById('notif-sent-filter-tipo').value;
+    const userFil  = document.getElementById('notif-sent-filter-user').value.trim();
+    if (!token) { toast('Introduce el token admin', false); return; }
+
+    const list = document.getElementById('notifs-sent-list');
+    list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
+
+    try {
+        const params = new URLSearchParams({ action:'getNotifsSent', token });
+        if (tipoFil) params.set('tipo', tipoFil);
+        if (userFil) params.set('user', userFil);
+        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        allNotifsSent = data;
+        renderNotifsSent();
+        toast('📤 ' + data.length + ' notificaciones cargadas');
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+const NOTIF_ICONS = { respuesta:'📬', anuncio:'📢', nuevo_misterio:'🔍', general:'🔔' };
+
+function renderNotifsSent() {
+    const list = document.getElementById('notifs-sent-list');
+    document.getElementById('notifs-sent-count').textContent = allNotifsSent.length + ' notificación' + (allNotifsSent.length === 1 ? '' : 'es');
+
+    if (!allNotifsSent.length) {
+        list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin notificaciones con esos filtros</p>';
+        return;
     }
-  }
-  return { error: 'Misterio no encontrado en parámetros' };
+
+    list.innerHTML = allNotifsSent.map(n => {
+        const icon  = NOTIF_ICONS[n.tipo] || '🔔';
+        const fecha = (() => { try { return new Date(n.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e){ return ''; }})();
+        const destColor = n.user === 'TODOS' ? '#f59e0b' : '#79c0ff';
+        // Resolver #mystery=ID en título y mensaje
+        const mystId = n.link?.match(/^#mystery=(.+)$/)?.[1];
+        const titulo  = mystId ? esc(n.titulo  || '').replace(esc(mystId), esc(mystTitlePlain(mystId))) : esc(n.titulo  || '');
+        const mensaje = mystId ? esc(n.mensaje || '').replace(esc(mystId), esc(mystTitlePlain(mystId))) : esc(n.mensaje || '');
+        // Mostrar enlace: si es interno muestra el nombre del misterio; si es externo muestra la URL
+        const linkHTML = (() => {
+            if (!n.link) return '';
+            if (mystId) return `<span style="font-size:11px;color:#a78bfa;">🔍 ${esc(mystTitlePlain(mystId))} <span style="color:#484f58;">(${esc(mystId)})</span></span>`;
+            return `<a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#388bfd;word-break:break-all;">🔗 ${esc(n.link)}</a>`;
+        })();
+        return `<div class="row-item clickable-row px-4 py-3" onclick='openNotifSentModal(${JSON.stringify({...n, _titulo: titulo, _mensaje: mensaje}).replace(/'/g,"&#39;")})'>
+            <div class="flex items-start justify-between gap-3 flex-wrap">
+                <div class="flex items-start gap-3 min-w-0">
+                    <span style="font-size:18px;flex-shrink:0;">${icon}</span>
+                    <div class="min-w-0">
+                        <p class="text-sm font-bold text-white">${titulo}</p>
+                        <p style="font-size:12px;color:#8b949e;margin-top:2px;white-space:pre-line;max-height:40px;overflow:hidden;">${mensaje}</p>
+                        ${linkHTML ? `<div style="margin-top:4px;">${linkHTML}</div>` : ''}
+                    </div>
+                </div>
+                <div style="text-align:right;flex-shrink:0;">
+                    <p style="font-size:11px;color:${destColor};font-weight:700;">${n.user === 'TODOS' ? '📢 Todos' : esc(n.user)}</p>
+                    <p style="font-size:11px;color:#6b7280;">${fecha}</p>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
 }
 
-// ─── GRUPOS ───────────────────────────────────────────────────────────────────
+['notif-sent-filter-tipo'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', () => {});
+});
 
-function _getGroups() {
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  let hoja   = ss.getSheetByName(SHEET_GRUPOS);
-  if (!hoja || hoja.getLastRow() < 2) return [];
-  const data = hoja.getRange(2, 1, hoja.getLastRow() - 1, 3).getValues();
-  return data
-    .filter(r => r[0])
-    .map(r => ({
-      id     : r[0]?.toString(),
-      nombre : r[1]?.toString(),
-      members: (r[2]?.toString() || '').split(',').map(m => m.trim()).filter(Boolean)
-    }));
+// ─── NOTIF SENT DETAIL MODAL ─────────────────────────────────────────────────
+let _currentNotifForReply = null;
+
+function openNotifSentModal(n) {
+    _currentNotifForReply = n;
+    const ICONS = { respuesta:'📬', anuncio:'📢', nuevo_misterio:'🔍', general:'🔔' };
+    document.getElementById('nsm-icon').textContent  = ICONS[n.tipo] || '🔔';
+    document.getElementById('nsm-title').textContent = n._titulo || n.titulo || '';
+    document.getElementById('nsm-dest').textContent  = n.user === 'TODOS' ? '📢 Todos' : (n.user || '—');
+    document.getElementById('nsm-tipo').textContent  = n.tipo || '—';
+    const fecha = (() => { try { return new Date(n.fecha).toLocaleString('es'); } catch(e){ return n.fecha || ''; } })();
+    document.getElementById('nsm-fecha').textContent = fecha;
+    document.getElementById('nsm-msg').textContent   = n._mensaje || n.mensaje || '';
+    const linkRow = document.getElementById('nsm-link-row');
+    if (n.link) {
+        const mystId = n.link?.match(/^#mystery=(.+)$/)?.[1];
+        linkRow.innerHTML = mystId
+            ? `<span style="color:#a78bfa;">🔍 ${esc(mystTitlePlain(mystId))}</span>`
+            : `<a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer" style="color:#388bfd;word-break:break-all;">🔗 ${esc(n.link)}</a>`;
+        linkRow.classList.remove('hidden');
+    } else { linkRow.classList.add('hidden'); }
+
+    // Reply button: sólo si tiene usuario concreto
+    const replyBtn = document.getElementById('nsm-reply-btn');
+    if (n.user && n.user !== 'TODOS') {
+        replyBtn.classList.remove('hidden');
+        replyBtn.onclick = () => {
+            closeNotifSentModal();
+            prefillSendNotif(n.user);
+        };
+    } else { replyBtn.classList.add('hidden'); }
+
+    document.getElementById('notif-sent-modal').classList.remove('hidden');
 }
 
-function _saveGroup(nombre, membersStr, existingId) {
-  if (!nombre) return { ok: false, error: 'Nombre requerido' };
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  let hoja   = ss.getSheetByName(SHEET_GRUPOS);
-  if (!hoja) {
-    hoja = ss.insertSheet(SHEET_GRUPOS);
-    hoja.getRange(1,1,1,3).setValues([['id_grupo','nombre','miembros']]);
-  }
-  const id = existingId || Date.now().toString();
-  if (existingId) {
-    const data = hoja.getRange(2, 1, Math.max(1, hoja.getLastRow() - 1), 3).getValues();
-    for (let i = 0; i < data.length; i++) {
-      if (data[i][0]?.toString() === existingId) {
-        hoja.getRange(i + 2, 1, 1, 3).setValues([[id, nombre, membersStr]]);
-        return { ok: true, id };
-      }
+function closeNotifSentModal() {
+    document.getElementById('notif-sent-modal').classList.add('hidden');
+}
+
+document.getElementById('notif-sent-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('notif-sent-modal')) closeNotifSentModal();
+});
+
+// Pre-rellena el formulario de envío de notificación
+function prefillSendNotif(userId, titulo, mensaje) {
+    // Cambiar a la pestaña de notificaciones
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    const notifTab = document.querySelector('[data-tab="notificaciones"]');
+    notifTab?.classList.add('active');
+    ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== 'notificaciones');
+    });
+    if (userId) document.getElementById('notif-user').value = userId;
+    if (titulo) document.getElementById('notif-titulo').value = titulo;
+    if (mensaje) document.getElementById('notif-mensaje').value = mensaje;
+    document.getElementById('notif-titulo').focus();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FEEDBACK
+// ═══════════════════════════════════════════════════════════════════
+const TIPO_LABELS = { sugerencia:'💡 Sugerencia', bug:'🐛 Bug / Error', elogio:'❤️ Elogio', otro:'💬 Otro', general:'💬 General' };
+const STAR_COLORS = ['','#ef4444','#f97316','#eab308','#84cc16','#22c55e'];
+
+document.getElementById('load-feedback-btn').addEventListener('click', async () => {
+    const token   = document.getElementById('admin-token').value.trim();
+    const tipoFil = document.getElementById('fb-filter-tipo').value;
+    if (!token) { toast('Introduce el token admin', false); return; }
+
+    const list = document.getElementById('feedback-list');
+    list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
+
+    try {
+        const params = new URLSearchParams({ action:'getFeedback', token });
+        if (tipoFil) params.set('tipo', tipoFil);
+        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+
+        document.getElementById('feedback-count').textContent = data.length + ' entrada' + (data.length === 1 ? '' : 's');
+
+        if (!data.length) {
+            list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin feedback con esos filtros 📭</p>';
+            return;
+        }
+
+        const ratings    = data.filter(r => r.valoracion && parseInt(r.valoracion));
+        const avgRating  = ratings.length ? (ratings.reduce((s, r) => s + parseInt(r.valoracion), 0) / ratings.length).toFixed(1) : null;
+        const tipoCounts = data.reduce((acc, r) => { acc[r.tipo || 'general'] = (acc[r.tipo || 'general'] || 0) + 1; return acc; }, {});
+
+        const summaryHTML = `<div style="background:#0d1117;padding:16px 20px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;border-bottom:1px solid #21262d;">
+            ${avgRating ? `<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:22px;color:#eab308;">★</span><span style="font-size:18px;font-weight:700;color:#e6edf3;">${avgRating}</span><span style="font-size:12px;color:#8b949e;">/ 5 (${ratings.length} votos)</span></div>` : ''}
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                ${Object.entries(tipoCounts).map(([t, n]) => `<span style="background:#21262d;border-radius:9999px;padding:3px 10px;font-size:12px;color:#8b949e;">${TIPO_LABELS[t] || t} <strong style="color:#e6edf3;">${n}</strong></span>`).join('')}
+            </div>
+        </div>`;
+
+        list.innerHTML = summaryHTML + data.map(r => {
+            const stars    = r.valoracion ? parseInt(r.valoracion) : 0;
+            const starsHTML = stars ? `<span style="color:${STAR_COLORS[stars] || '#eab308'};font-size:13px;">${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</span>` : '';
+            const fecha    = (() => { try { return new Date(r.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e){ return ''; }})();
+            const canReply = r.user && r.user !== 'anónimo';
+            return `<div class="row-item clickable-row px-4 py-3" onclick="openFeedbackDetail(${JSON.stringify(r).replace(/"/g,'&quot;')})">
+                <div class="flex items-start justify-between gap-3 flex-wrap mb-2">
+                    <div class="flex items-center gap-2">
+                        <span style="font-size:13px;background:#21262d;padding:2px 8px;border-radius:9999px;color:#8b949e;">${TIPO_LABELS[r.tipo] || r.tipo || '—'}</span>
+                        ${starsHTML}
+                    </div>
+                    <div style="text-align:right;">
+                        <p style="font-size:11px;color:#79c0ff;${canReply?'cursor:pointer;text-decoration:underline;':''}" ${canReply ? `onclick="event.stopPropagation();prefillSendNotif('${esc(r.user)}')"` : ''}>${esc(r.user || 'anónimo')}</p>
+                        <p style="font-size:11px;color:#6b7280;">${fecha}</p>
+                    </div>
+                </div>
+                <p style="font-size:13px;color:#e6edf3;white-space:pre-line;max-height:48px;overflow:hidden;">${esc(r.texto || '—')}</p>
+            </div>`;
+        }).join('');
+
+        toast('💬 ' + data.length + ' entradas de feedback cargadas');
+    } catch(e) { toast('Error de conexión', false); }
+});
+
+// ─── FEEDBACK DETAIL POPOVER (inline expand) ────────────────────────────────
+let _fbDetailOpen = null;
+function openFeedbackDetail(r) {
+    // Reutiliza el modal de notif-sent para mostrar el feedback en detalle
+    const TIPO_ICONS = { sugerencia:'💡', bug:'🐛', elogio:'❤️', otro:'💬', general:'💬' };
+    _currentNotifForReply = null;
+    document.getElementById('nsm-icon').textContent  = TIPO_ICONS[r.tipo] || '💬';
+    document.getElementById('nsm-title').textContent = TIPO_LABELS[r.tipo] || r.tipo || 'Feedback';
+    document.getElementById('nsm-dest').textContent  = r.user || 'anónimo';
+    document.getElementById('nsm-tipo').textContent  = r.valoracion ? '★'.repeat(parseInt(r.valoracion)) + ' ' + r.valoracion + '/5' : '—';
+    const fecha = (() => { try { return new Date(r.fecha).toLocaleString('es'); } catch(e){ return ''; } })();
+    document.getElementById('nsm-fecha').textContent = fecha;
+    document.getElementById('nsm-msg').textContent   = r.texto || '';
+    document.getElementById('nsm-link-row').classList.add('hidden');
+
+    const replyBtn = document.getElementById('nsm-reply-btn');
+    if (r.user && r.user !== 'anónimo') {
+        replyBtn.classList.remove('hidden');
+        replyBtn.textContent = '↩️ Responder a este usuario';
+        replyBtn.onclick = () => { closeNotifSentModal(); prefillSendNotif(r.user); };
+    } else { replyBtn.classList.add('hidden'); }
+
+    document.getElementById('notif-sent-modal').classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// USUARIOS
+// ═══════════════════════════════════════════════════════════════════
+let allUsers = [];
+let _currentUserProfile = null;
+
+document.getElementById('load-users-btn').addEventListener('click', loadUsers);
+document.getElementById('users-search').addEventListener('input', renderUsersList);
+
+async function loadUsers() {
+    const token = document.getElementById('admin-token').value.trim();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    const list = document.getElementById('users-list');
+    list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getUsers&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        allUsers = data;
+        renderUsersList();
+        toast('👥 ' + data.length + ' usuarios cargados');
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+function renderUsersList() {
+    const list   = document.getElementById('users-list');
+    const search = document.getElementById('users-search').value.toLowerCase().trim();
+    const users  = search
+        ? allUsers.filter(u => u.nombre?.toLowerCase().includes(search) || u.idPublico?.toLowerCase().includes(search))
+        : allUsers;
+
+    document.getElementById('users-count').textContent = users.length + ' usuario' + (users.length === 1 ? '' : 's');
+
+    if (!users.length) {
+        list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin usuarios con esa búsqueda</p>';
+        return;
     }
-  }
-  hoja.appendRow([id, nombre, membersStr]);
-  return { ok: true, id };
+
+    // Cabecera tabla
+    const header = `<div style="display:grid;grid-template-columns:28px 1fr 90px 80px 80px;gap:8px;padding:10px 16px;background:#0d1117;font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #21262d;">
+        <span>#</span><span>Usuario</span><span style="text-align:right;">Puntos</span><span style="text-align:right;">Misterios</span><span></span>
+    </div>`;
+
+    list.innerHTML = header + users.map((u, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+        return `<div class="row-item clickable-row" style="display:grid;grid-template-columns:28px 1fr 90px 80px 80px;gap:8px;padding:10px 16px;align-items:center;" onclick='openUserProfile(${JSON.stringify(u).replace(/'/g,"&#39;")})'>
+            <span style="font-size:12px;color:#484f58;">${medal || (i+1)}</span>
+            <div class="min-w-0">
+                <p style="font-size:13px;font-weight:700;color:#e6edf3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(u.nombre || '?')}</p>
+                <p style="font-size:10px;color:#8b949e;font-family:monospace;">${esc(u.idPublico || '')}</p>
+            </div>
+            <p style="font-size:14px;font-weight:700;color:#f0e68c;text-align:right;">${u.total ?? 0}</p>
+            <p style="font-size:12px;color:#8b949e;text-align:right;">${u.misteriosSueltos ?? 0} 🔍</p>
+            <div style="text-align:right;"><button class="btn btn-gray" style="padding:4px 10px;font-size:11px;" onclick="event.stopPropagation();prefillSendNotif('${esc(u.idPublico)}')">✉️</button></div>
+        </div>`;
+    }).join('');
 }
 
-function _deleteGroup(groupId) {
-  if (!groupId) return { ok: false, error: 'ID requerido' };
-  const ss   = SpreadsheetApp.getActiveSpreadsheet();
-  const hoja = ss.getSheetByName(SHEET_GRUPOS);
-  if (!hoja || hoja.getLastRow() < 2) return { ok: false, error: 'Sin grupos' };
-  const data = hoja.getRange(2, 1, hoja.getLastRow() - 1, 1).getValues();
-  for (let i = 0; i < data.length; i++) {
-    if (data[i][0]?.toString() === groupId) {
-      hoja.deleteRow(i + 2);
-      return { ok: true };
+// ─── PERFIL DE USUARIO ───────────────────────────────────────────────────────
+
+async function openUserProfile(u) {
+    _currentUserProfile = u;
+    const modal = document.getElementById('user-profile-modal');
+    modal.classList.remove('hidden');
+
+    document.getElementById('upm-name').textContent = u.nombre || '?';
+    document.getElementById('upm-id').textContent   = u.idPublico || '';
+
+    // Stats rápidos
+    document.getElementById('upm-stats').innerHTML = `
+        <div class="stat-card"><p style="font-size:24px;font-weight:900;color:#f0e68c;">${u.total ?? 0}</p><p style="font-size:11px;color:#8b949e;margin-top:2px;">Puntos totales</p></div>
+        <div class="stat-card"><p style="font-size:24px;font-weight:900;color:#79c0ff;">${u.misteriosSueltos ?? 0}</p><p style="font-size:11px;color:#8b949e;margin-top:2px;">Misterios resueltos</p></div>
+        <div class="stat-card"><p style="font-size:24px;font-weight:900;color:#34d399;">—</p><p style="font-size:11px;color:#8b949e;margin-top:2px;">Cargando historial...</p></div>`;
+
+    // Reset sub-tabs
+    document.querySelectorAll('.upm-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.upm-tab-btn[data-utab="misterios"]').classList.add('active');
+    document.querySelectorAll('.upm-tab-content').forEach(c => c.classList.add('hidden'));
+    document.getElementById('upm-misterios').classList.remove('hidden');
+
+    // Tab switcher
+    document.querySelectorAll('.upm-tab-btn').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.upm-tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.querySelectorAll('.upm-tab-content').forEach(c => c.classList.add('hidden'));
+            document.getElementById('upm-' + btn.dataset.utab).classList.remove('hidden');
+        };
+    });
+
+    // Misterios desde datos cacheados (sin llamada extra)
+    renderUpmMisterios(u.misterios || []);
+
+    // Ajustar puntos
+    document.getElementById('adj-concept').value = 'ajuste_manual';
+    document.getElementById('adj-delta').value   = '0';
+    document.getElementById('adj-result').classList.add('hidden');
+    document.getElementById('adj-submit-btn').onclick = () => applyPointAdjust(u.idPublico);
+
+    // Send notif shortcut
+    document.getElementById('upm-send-notif-btn').onclick = () => {
+        modal.classList.add('hidden');
+        prefillSendNotif(u.idPublico);
+    };
+
+    // Cargar detalle completo en paralelo
+    loadUserDetail(u.idPublico);
+}
+
+function renderUpmMisterios(misterios) {
+    const el = document.getElementById('upm-misterios');
+    if (!misterios.length) { el.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:32px;">Sin misterios resueltos aún.</p>'; return; }
+    // Ordenar por puntos desc
+    const sorted = [...misterios].sort((a, b) => b.puntos - a.puntos);
+    el.innerHTML = sorted.map(m => `
+        <div class="row-item" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;gap:12px;">
+            <div class="min-w-0">
+                <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(mystTitlePlain(m.id))}</p>
+                <p style="font-size:10px;color:#484f58;font-family:monospace;">${esc(m.id)}</p>
+            </div>
+            <span style="font-size:14px;font-weight:700;color:#f0e68c;flex-shrink:0;">${m.puntos} pts</span>
+        </div>`).join('');
+}
+
+async function loadUserDetail(idPublico) {
+    const token = document.getElementById('admin-token').value.trim();
+    if (!token) return;
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getUserDetail&token=${encodeURIComponent(token)}&idPublico=${encodeURIComponent(idPublico)}`);
+        const d    = await res.json();
+        if (d.error) { toast('Error cargando detalle: ' + d.error, false); return; }
+
+        // Actualizar stat de respuestas totales
+        document.getElementById('upm-stats').querySelector('.stat-card:last-child p:first-child').textContent = d.historia?.length ?? 0;
+        document.getElementById('upm-stats').querySelector('.stat-card:last-child p:last-child').textContent  = 'Intentos totales';
+
+        // Historial
+        const histEl = document.getElementById('upm-historial');
+        if (!d.historia?.length) {
+            histEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:32px;">Sin historial de respuestas.</p>';
+        } else {
+            histEl.innerHTML = d.historia.map(r => {
+                const fecha = (() => { try { return new Date(r.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric'}); } catch(e){ return ''; }})();
+                const estado = r.correcto ? '✅' : (r.comentario ? '❌' : '⏳');
+                const hasReview = allResponses.find(x => x.row === r.row);
+                const clickAttr = r.row && hasReview ? `style="cursor:pointer;" onclick="openReview(${r.row})"` : '';
+                return `<div class="row-item" ${clickAttr} style="padding:10px 14px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                        <div><p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(mystTitlePlain(r.misterio))}</p>
+                            <p style="font-size:12px;color:#8b949e;">${esc(r.solucion || '—')}</p></div>
+                        <div style="text-align:right;flex-shrink:0;">
+                            <p style="font-size:18px;">${estado}</p>
+                            <p style="font-size:10px;color:#6b7280;">${fecha}</p>
+                        </div>
+                    </div>
+                    ${r.comentario ? `<p style="font-size:11px;color:#a78bfa;margin-top:6px;">💬 ${esc(r.comentario)}</p>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        // Notificaciones
+        const notifEl = document.getElementById('upm-notifs');
+        if (!d.notifs?.length) {
+            notifEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:32px;">Sin notificaciones.</p>';
+        } else {
+            const ICONS = { respuesta:'📬', anuncio:'📢', nuevo_misterio:'🔍', general:'🔔' };
+            notifEl.innerHTML = d.notifs.map(n => {
+                const mystId = n.link?.match(/^#mystery=(.+)$/)?.[1];
+                const titulo  = mystId ? esc(n.titulo||'').replace(esc(mystId), esc(mystTitlePlain(mystId))) : esc(n.titulo||'');
+                const fecha = (() => { try { return new Date(n.fecha).toLocaleDateString('es',{day:'numeric',month:'short'}); } catch(e){ return ''; }})();
+                const isGlobal = (n.user === 'TODOS');
+                return `<div class="row-item clickable-row" style="padding:10px 14px;display:flex;gap:10px;align-items:flex-start;" onclick='openNotifSentModal(${JSON.stringify(n).replace(/'/g,"&#39;")})'>
+                    <span style="font-size:16px;flex-shrink:0;">${ICONS[n.tipo]||'🔔'}</span>
+                    <div class="flex-1 min-w-0">
+                        <p style="font-size:12px;font-weight:700;color:#e6edf3;">${titulo} ${isGlobal ? '<span style="font-size:10px;color:#f59e0b;background:#451a03;padding:1px 5px;border-radius:4px;">global</span>' : ''}</p>
+                        <p style="font-size:11px;color:#8b949e;max-height:32px;overflow:hidden;">${esc(n.mensaje||'')}</p>
+                    </div>
+                    <p style="font-size:10px;color:#6b7280;flex-shrink:0;">${fecha}</p>
+                </div>`;
+            }).join('');
+        }
+
+        // Feedback
+        const fbEl = document.getElementById('upm-feedback');
+        if (!d.feedback?.length) {
+            fbEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:32px;">Sin feedback enviado.</p>';
+        } else {
+            fbEl.innerHTML = d.feedback.map(r => {
+                const stars = parseInt(r.valoracion) || 0;
+                const starsHTML = stars ? `<span style="color:#eab308;">${'★'.repeat(stars)}</span>` : '';
+                const fecha = (() => { try { return new Date(r.fecha).toLocaleDateString('es',{day:'numeric',month:'short'}); } catch(e){ return ''; }})();
+                return `<div class="row-item clickable-row" style="padding:10px 14px;" onclick='openFeedbackDetail(${JSON.stringify(r).replace(/'/g,"&#39;")})'>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
+                        <span style="font-size:12px;background:#21262d;padding:2px 8px;border-radius:12px;color:#8b949e;">${TIPO_LABELS[r.tipo]||r.tipo||'—'}</span>
+                        <div style="display:flex;align-items:center;gap:6px;">${starsHTML}<p style="font-size:10px;color:#6b7280;">${fecha}</p></div>
+                    </div>
+                    <p style="font-size:12px;color:#e6edf3;max-height:40px;overflow:hidden;">${esc(r.texto||'—')}</p>
+                </div>`;
+            }).join('');
+        }
+
+    } catch(e) { console.warn('Error cargando detalle usuario:', e); }
+}
+
+async function applyPointAdjust(idPublico) {
+    const token   = document.getElementById('admin-token').value.trim();
+    const concept = document.getElementById('adj-concept').value.trim() || 'ajuste_manual';
+    const delta   = parseFloat(document.getElementById('adj-delta').value) || 0;
+    if (!delta) { toast('El delta es 0, nada que cambiar', false); return; }
+    const btn = document.getElementById('adj-submit-btn');
+    btn.disabled = true; btn.textContent = '⏳...';
+    try {
+        const params = new URLSearchParams({ action:'adjustPoints', token, idPublico, mysteryId: concept, delta });
+        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); }
+        else {
+            const result = document.getElementById('adj-result');
+            result.textContent = `✅ Aplicado. Nuevo valor en "${concept}": ${data.newVal}`;
+            result.classList.remove('hidden');
+            toast('⚙️ Puntos ajustados correctamente');
+            // Actualizar cache local
+            const idx = allUsers.findIndex(u => u.idPublico === idPublico);
+            if (idx >= 0) { allUsers[idx].total = (allUsers[idx].total || 0) + delta; }
+        }
+    } catch(e) { toast('Error de conexión', false); }
+    btn.disabled = false; btn.textContent = 'Aplicar';
+}
+
+document.getElementById('user-profile-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('user-profile-modal'))
+        document.getElementById('user-profile-modal').classList.add('hidden');
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// CSV EXPORT
+// ═══════════════════════════════════════════════════════════════════
+document.getElementById('csv-export-btn').addEventListener('click', () => {
+    const rows = getFilteredResponses();
+    if (!rows.length) { toast('No hay datos para exportar', false); return; }
+    const headers = ['Fecha','Misterio','Título misterio','Usuario','ID público','Solución','Explicación','Dificultad','Opinión','Estado','Comentario'];
+    const csvRows = [headers.join(',')];
+    rows.forEach(r => {
+        const fecha   = (() => { try { return new Date(r.fecha).toLocaleString('es'); } catch(e){ return r.fecha || ''; }})();
+        const estado  = r.correcto ? 'Correcta' : (r.comentario ? 'Incorrecta' : 'Pendiente');
+        const cols = [fecha, r.misterio||'', mystTitlePlain(r.misterio), r.nombre||'', r.idPublico||'', r.solucion||'', r.explicacion||'', r.dificultad||'', r.opinion||'', estado, r.comentario||''];
+        csvRows.push(cols.map(c => `"${String(c).replace(/"/g,'""')}"`).join(','));
+    });
+    const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement('a'), { href: url, download: `respuestas_${new Date().toISOString().slice(0,10)}.csv` });
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('⬇️ CSV exportado (' + rows.length + ' filas)');
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// LINK PREVIEW EN NOTIFICACIONES
+// ═══════════════════════════════════════════════════════════════════
+document.getElementById('notif-link').addEventListener('input', function() {
+    const val = this.value.trim();
+    const prev = document.getElementById('notif-link-preview');
+    if (!val) { prev.textContent = ''; return; }
+    const mystId = val.match(/^#mystery=(.+)$/)?.[1];
+    if (mystId) {
+        const title = mystTitlePlain(mystId);
+        prev.innerHTML = `🔍 Enlace a misterio: <strong style="color:#e6edf3;">${esc(title)}</strong> <span style="color:#484f58;">(${esc(mystId)})</span>`;
+    } else {
+        try { const d = new URL(val).hostname; prev.innerHTML = `🔗 Enlace externo: <strong style="color:#e6edf3;">${esc(d)}</strong>`; }
+        catch(e) { prev.textContent = '⚠️ URL no válida'; }
     }
-  }
-  return { ok: false, error: 'Grupo no encontrado' };
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// GRUPOS DE NOTIFICACIÓN
+// ═══════════════════════════════════════════════════════════════════
+let allGroups = [];
+
+document.getElementById('load-groups-btn').addEventListener('click', loadGroups);
+document.getElementById('new-group-btn').addEventListener('click', () => openGroupEditor());
+document.getElementById('group-save-btn').addEventListener('click', saveGroup);
+document.getElementById('group-cancel-btn').addEventListener('click', () => {
+    document.getElementById('group-editor').classList.add('hidden');
+});
+
+async function loadGroups() {
+    const token = document.getElementById('admin-token').value.trim();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getGroups&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        allGroups = data;
+        renderGroups();
+        renderGroupPills();
+    } catch(e) { toast('Error de conexión', false); }
 }
 
-function _sendNotifToGroup(groupId, titulo, msg, tipo, link) {
-  const groups = _getGroups();
-  const group  = groups.find(g => g.id === groupId);
-  if (!group) return { ok: false, error: 'Grupo no encontrado' };
-  let sent = 0;
-  group.members.forEach(idPublico => {
-    if (!idPublico) return;
-    escribirNotificacion(idPublico, titulo, msg, tipo, link);
-    sent++;
-  });
-  return { ok: true, sent, total: group.members.length };
+function renderGroups() {
+    const list = document.getElementById('groups-list');
+    if (!allGroups.length) { list.innerHTML = '<p style="color:#8b949e;font-size:12px;">Sin grupos creados aún.</p>'; return; }
+    list.innerHTML = allGroups.map(g => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#0d1117;border-radius:6px;margin-bottom:6px;gap:8px;">
+            <div class="min-w-0">
+                <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(g.nombre)}</p>
+                <p style="font-size:11px;color:#8b949e;">${g.members.length} miembro${g.members.length===1?'':'s'}</p>
+            </div>
+            <div style="display:flex;gap:4px;flex-shrink:0;">
+                <button class="btn btn-gray" style="padding:3px 8px;font-size:11px;" onclick='openGroupEditor(${JSON.stringify(g).replace(/'/g,"&#39;")})'>✏️</button>
+                <button class="btn btn-red" style="padding:3px 8px;font-size:11px;" onclick="deleteGroup('${esc(g.id)}')">🗑️</button>
+                <button class="btn btn-blue" style="padding:3px 8px;font-size:11px;" onclick="document.getElementById('notif-user').value='__group__${esc(g.id)}';document.getElementById('notif-group-selector').style.outline='2px solid #388bfd'">✉️ Enviar</button>
+            </div>
+        </div>`).join('');
 }
+
+function renderGroupPills() {
+    const container = document.getElementById('notif-groups-pills');
+    container.innerHTML = allGroups.map(g =>
+        `<button style="font-size:11px;background:#21262d;border:1px solid #30363d;color:#8b949e;padding:2px 8px;border-radius:12px;cursor:pointer;" onclick="document.getElementById('notif-user').value='__group__${esc(g.id)}';this.style.background='#1f6feb';this.style.color='#fff';">${esc(g.nombre)}</button>`
+    ).join('');
+}
+
+function openGroupEditor(g) {
+    document.getElementById('group-editor').classList.remove('hidden');
+    document.getElementById('group-edit-id').value      = g?.id     || '';
+    document.getElementById('group-edit-name').value    = g?.nombre || '';
+    document.getElementById('group-edit-members').value = g ? g.members.join(', ') : '';
+    document.getElementById('group-edit-name').focus();
+}
+
+async function saveGroup() {
+    const token   = document.getElementById('admin-token').value.trim();
+    const nombre  = document.getElementById('group-edit-name').value.trim();
+    const members = document.getElementById('group-edit-members').value;
+    const id      = document.getElementById('group-edit-id').value.trim();
+    if (!nombre) { toast('Pon un nombre al grupo', false); return; }
+    try {
+        const params = new URLSearchParams({ action:'saveGroup', token, nombre, members, id });
+        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        toast('💾 Grupo guardado');
+        document.getElementById('group-editor').classList.add('hidden');
+        await loadGroups();
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+async function deleteGroup(id) {
+    if (!confirm('¿Eliminar este grupo?')) return;
+    const token = document.getElementById('admin-token').value.trim();
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=deleteGroup&token=${encodeURIComponent(token)}&id=${encodeURIComponent(id)}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        toast('🗑️ Grupo eliminado');
+        await loadGroups();
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+// Interceptar send-notif para grupos
+document.getElementById('send-notif-btn').addEventListener('click', async () => {
+    const token  = document.getElementById('admin-token').value.trim();
+    const user   = document.getElementById('notif-user').value.trim();
+    const titulo = document.getElementById('notif-titulo').value.trim();
+    const msg    = document.getElementById('notif-mensaje').value.trim();
+    const tipo   = document.getElementById('notif-tipo').value;
+    const link   = document.getElementById('notif-link').value.trim();
+    if (!token)  { toast('Introduce el token admin', false); return; }
+    if (!titulo) { toast('El título no puede estar vacío', false); return; }
+    if (!msg)    { toast('El mensaje no puede estar vacío', false); return; }
+
+    const btn = document.getElementById('send-notif-btn');
+    btn.disabled = true; btn.textContent = '⏳ Enviando...';
+
+    try {
+        let action, params;
+        if (user.startsWith('__group__')) {
+            const groupId = user.replace('__group__', '');
+            action = 'sendNotifToGroup';
+            params = new URLSearchParams({ action, token, groupId, titulo, msg, tipo, link });
+        } else {
+            action = 'sendNotif';
+            params = new URLSearchParams({ action, token,
+                user  : user || 'TODOS',
+                titulo, msg, tipo, link
+            });
+        }
+        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); }
+        else {
+            const sentMsg = data.sent ? ` (enviada a ${data.sent} miembros)` : '';
+            toast('🚀 Notificación enviada' + sentMsg);
+            document.getElementById('notif-titulo').value = '';
+            document.getElementById('notif-mensaje').value = '';
+            document.getElementById('notif-link').value = '';
+            document.getElementById('notif-user').value = '';
+            document.getElementById('notif-link-preview').textContent = '';
+        }
+    } catch(e) { toast('Error de conexión', false); }
+    btn.disabled = false; btn.textContent = '🚀 Enviar notificación';
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// MISTERIOS — ESTADÍSTICAS
+// ═══════════════════════════════════════════════════════════════════
+let allMysteryStats = [];
+
+document.getElementById('load-mystery-stats-btn').addEventListener('click', loadMysteryStats);
+document.getElementById('mystery-search').addEventListener('input', renderMysteryStats);
+
+async function loadMysteryStats() {
+    const token = document.getElementById('admin-token').value.trim();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    if (!Object.keys(mysteryTitleMap).length) await loadMysteryTitles();
+    const list = document.getElementById('mystery-stats-list');
+    list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getMysteryStats&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        allMysteryStats = data;
+        renderMysteryStats();
+        toast('🔍 ' + data.length + ' misterios cargados');
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+function renderMysteryStats() {
+    const list   = document.getElementById('mystery-stats-list');
+    const search = document.getElementById('mystery-search').value.toLowerCase().trim();
+    const stats  = search
+        ? allMysteryStats.filter(m => mystTitlePlain(m.id).toLowerCase().includes(search) || m.id.toLowerCase().includes(search))
+        : allMysteryStats;
+
+    document.getElementById('mystery-stats-count').textContent = stats.length + ' misterio' + (stats.length===1?'':'s');
+
+    if (!stats.length) { list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin misterios</p>'; return; }
+
+    list.innerHTML = `<div style="display:grid;grid-template-columns:1fr 80px;gap:8px;padding:10px 16px;background:#0d1117;font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #21262d;">
+        <span>Misterio</span><span style="text-align:right;">Resuelto por</span>
+    </div>` + stats.map(m => {
+        const title = mystTitlePlain(m.id);
+        const top3  = m.solvers.slice(0, 3);
+        const topHTML = top3.map((s, i) => {
+            const medal = i===0?'🥇':i===1?'🥈':'🥉';
+            return `<span style="font-size:11px;color:#79c0ff;cursor:pointer;" title="${esc(s.puntos)} pts" onclick='openUserProfileById("${esc(s.idPublico)}")'>${medal} ${esc(s.nombre)}</span>`;
+        }).join('<span style="color:#30363d;"> · </span>');
+        const extraSolvers = m.totalSolvers > 3 ? `<span style="font-size:10px;color:#8b949e;"> +${m.totalSolvers-3} más</span>` : '';
+        return `<details style="border-bottom:1px solid #21262d;">
+            <summary style="display:grid;grid-template-columns:1fr 80px;gap:8px;padding:12px 16px;cursor:pointer;list-style:none;align-items:center;">
+                <div>
+                    <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(title)}</p>
+                    <p style="font-size:10px;color:#484f58;font-family:monospace;">${esc(m.id)}</p>
+                    ${m.totalSolvers ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">${topHTML}${extraSolvers}</div>` : ''}
+                </div>
+                <p style="font-size:14px;font-weight:700;color:${m.totalSolvers?'#4ade80':'#8b949e'};text-align:right;">${m.totalSolvers} 🧩</p>
+            </summary>
+            ${m.solvers.length ? `<div style="padding:8px 16px 12px;background:#0d1117;">
+                ${m.solvers.map((s, i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #21262d;gap:8px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:12px;color:#8b949e;width:20px;text-align:center;">${i+1}</span>
+                        <div>
+                            <span style="font-size:12px;font-weight:700;color:#e6edf3;cursor:pointer;" onclick='openUserProfileById("${esc(s.idPublico)}")'>${esc(s.nombre)}</span>
+                            <p style="font-size:10px;color:#8b949e;font-family:monospace;">${esc(s.idPublico)}</p>
+                        </div>
+                    </div>
+                    <div style="text-align:right;flex-shrink:0;">
+                        <p style="font-size:13px;font-weight:700;color:#f0e68c;">${s.puntos} pts</p>
+                        <button class="btn btn-gray" style="padding:2px 7px;font-size:10px;margin-top:2px;" onclick="event.stopPropagation();prefillSendNotif('${esc(s.idPublico)}')">✉️</button>
+                    </div>
+                </div>`).join('')}
+            </div>` : `<p style="color:#8b949e;font-size:12px;padding:8px 16px 12px;">Nadie ha resuelto este misterio aún.</p>`}
+        </details>`;
+    }).join('');
+}
+
+// Abre perfil de usuario desde su ID público (buscando en allUsers o cargando)
+async function openUserProfileById(idPublico) {
+    let u = allUsers.find(x => x.idPublico === idPublico);
+    if (!u) {
+        // Cargamos datos básicos desde getUserDetail
+        const token = document.getElementById('admin-token').value.trim();
+        if (!token) { toast('Introduce el token admin primero', false); return; }
+        try {
+            const res  = await fetch(`${APPS_SCRIPT_URL}?action=getUserDetail&token=${encodeURIComponent(token)}&idPublico=${encodeURIComponent(idPublico)}`);
+            const d    = await res.json();
+            if (d.error) { toast('Error: ' + d.error, false); return; }
+            u = { idPublico: d.idPublico, nombre: d.nombre, total: d.total, misteriosSueltos: (d.misterios||[]).length, misterios: d.misterios||[], _fullDetail: d };
+        } catch(e) { toast('Error de conexión', false); return; }
+    }
+    openUserProfile(u);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// AUTOCOMPLETADO
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Crea un autocompletado en un <input> dentro de un .ac-wrapper.
+ * @param {string}   inputId     – ID del input
+ * @param {Function} getSuggestions(query) – devuelve [{main, sub, value}]
+ * @param {Function} [onSelect]  – callback(value, item) al seleccionar
+ * @param {Object}   [opts]      – { onInput: fn } para filtrado extra
+ */
+function attachAutocomplete(inputId, getSuggestions, onSelect, opts = {}) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+
+    const wrapper = input.closest('.ac-wrapper');
+    if (!wrapper) return;
+
+    let dropdown  = null;
+    let activeIdx = -1;
+    let lastQuery = '';
+
+    function closeDropdown() {
+        dropdown?.remove();
+        dropdown  = null;
+        activeIdx = -1;
+    }
+
+    function openDropdown(items) {
+        closeDropdown();
+        if (!items.length) return;
+        dropdown = document.createElement('div');
+        dropdown.className = 'ac-dropdown';
+        dropdown.innerHTML = items.map((item, i) =>
+            `<div class="ac-item" data-idx="${i}">
+                <span class="ac-main">${esc(item.main)}</span>
+                ${item.sub ? `<span class="ac-sub">${esc(item.sub)}</span>` : ''}
+            </div>`
+        ).join('');
+        wrapper.appendChild(dropdown);
+        dropdown.querySelectorAll('.ac-item').forEach(el => {
+            el.addEventListener('mousedown', e => {
+                e.preventDefault();
+                const item = items[parseInt(el.dataset.idx)];
+                input.value = item.value;
+                closeDropdown();
+                onSelect?.(item.value, item);
+                opts.onInput?.();
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        });
+    }
+
+    function highlightItem(idx) {
+        if (!dropdown) return;
+        dropdown.querySelectorAll('.ac-item').forEach((el, i) => {
+            el.classList.toggle('active', i === idx);
+            if (i === idx) el.scrollIntoView({ block: 'nearest' });
+        });
+    }
+
+    input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        lastQuery = q;
+        if (!q) { closeDropdown(); return; }
+        const items = getSuggestions(q);
+        openDropdown(items);
+    });
+
+    input.addEventListener('keydown', e => {
+        if (!dropdown) return;
+        const items = dropdown.querySelectorAll('.ac-item');
+        if (e.key === 'ArrowDown')  { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); highlightItem(activeIdx); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); highlightItem(activeIdx); }
+        else if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); items[activeIdx]?.dispatchEvent(new MouseEvent('mousedown')); }
+        else if (e.key === 'Escape') closeDropdown();
+    });
+
+    input.addEventListener('blur', () => setTimeout(closeDropdown, 150));
+}
+
+// Fuente de usuarios
+function userSuggestions(q) {
+    return allUsers
+        .filter(u => u.nombre?.toLowerCase().includes(q) || u.idPublico?.toLowerCase().includes(q))
+        .slice(0, 8)
+        .map(u => ({ main: u.nombre || u.idPublico, sub: u.idPublico, value: u.idPublico }));
+}
+
+// Fuente de misterios (título o ID)
+function mysterySuggestions(q) {
+    return Object.entries(mysteryTitleMap)
+        .filter(([id, title]) => title.toLowerCase().includes(q) || id.toLowerCase().includes(q))
+        .slice(0, 8)
+        .map(([id, title]) => ({ main: title, sub: id, value: id }));
+}
+
+// Vincular cuando los datos estén disponibles (allUsers puede estar vacío al inicio)
+function initAutocompletes() {
+    attachAutocomplete('notif-user',            userSuggestions);
+    attachAutocomplete('hist-user-input',        userSuggestions);
+    attachAutocomplete('filter-user',            userSuggestions, null, { onInput: renderResponses });
+    attachAutocomplete('notif-sent-filter-user', userSuggestions);
+    attachAutocomplete('mystery-search',         mysterySuggestions, null, { onInput: renderMysteryStats });
+    attachAutocomplete('adj-concept',            (q) => {
+        // Sugiere IDs de misterio como concepto de ajuste de puntos
+        return Object.entries(mysteryTitleMap)
+            .filter(([id, title]) => id.toLowerCase().includes(q) || title.toLowerCase().includes(q))
+            .slice(0, 6)
+            .map(([id, title]) => ({ main: id, sub: title, value: id }));
+    });
+}
+
+// Lanzar los autocompletes en cuanto haya datos; si ya están cargados, inmediato
+const _origLoadUsers = loadUsers;
+loadUsers = async function(...args) {
+    await _origLoadUsers(...args);
+    initAutocompletes();
+};
+
+// También inicializar cuando se carguen títulos de misterios
+const _origLoadMysteryTitles = loadMysteryTitles;
+loadMysteryTitles = async function(...args) {
+    await _origLoadMysteryTitles(...args);
+    initAutocompletes();
+};
+
+// Inicializar de todas formas (puede que ya haya datos cargados)
+setTimeout(initAutocompletes, 500);
+
+// ═══════════════════════════════════════════════════════════════════
+// UTILIDADES
+// ═══════════════════════════════════════════════════════════════════
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>
