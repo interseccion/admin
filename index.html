@@ -920,6 +920,7 @@ function openNotifSentModal(n) {
 
 function closeNotifSentModal() {
     document.getElementById('notif-sent-modal').classList.add('hidden');
+    document.getElementById('feedback-inline-reply')?.remove();
 }
 
 document.getElementById('notif-sent-modal').addEventListener('click', e => {
@@ -1023,7 +1024,42 @@ function openFeedbackDetail(r) {
     if (r.user && r.user !== 'anónimo') {
         replyBtn.classList.remove('hidden');
         replyBtn.textContent = '↩️ Responder a este usuario';
-        replyBtn.onclick = () => { closeNotifSentModal(); prefillSendNotif(r.user); };
+        replyBtn.onclick = () => {
+            // Mostrar formulario inline de respuesta dentro del mismo modal
+            const existingForm = document.getElementById('feedback-inline-reply');
+            if (existingForm) { existingForm.remove(); return; }
+            const form = document.createElement('div');
+            form.id = 'feedback-inline-reply';
+            form.style.cssText = 'margin-top:12px;padding-top:12px;border-top:1px solid #30363d;';
+            form.innerHTML = `
+                <p style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;margin-bottom:6px;">Tu respuesta (se enviará como notificación)</p>
+                <input type="text" id="fb-reply-titulo" value="↩️ Has recibido una respuesta a tu feedback" style="margin-bottom:6px;width:100%;box-sizing:border-box;">
+                <textarea id="fb-reply-msg" rows="3" placeholder="Escribe tu respuesta..." style="width:100%;box-sizing:border-box;resize:vertical;"></textarea>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;">
+                    <button class="btn btn-gray" onclick="document.getElementById('feedback-inline-reply')?.remove()">Cancelar</button>
+                    <button class="btn btn-blue" id="fb-reply-send-btn">📣 Enviar respuesta</button>
+                </div>`;
+            // Insertar después del botón de reply
+            replyBtn.parentNode.insertBefore(form, replyBtn.nextSibling);
+            document.getElementById('fb-reply-msg').focus();
+
+            document.getElementById('fb-reply-send-btn').onclick = async () => {
+                const token  = document.getElementById('admin-token').value.trim();
+                const titulo = document.getElementById('fb-reply-titulo').value.trim() || `↩️ Respuesta a tu feedback`;
+                const msg    = document.getElementById('fb-reply-msg').value.trim();
+                if (!msg) { document.getElementById('fb-reply-msg').focus(); return; }
+                const sendBtn = document.getElementById('fb-reply-send-btn');
+                sendBtn.disabled = true; sendBtn.textContent = '⏳...';
+                try {
+                    const params = new URLSearchParams({ action:'sendNotif', token, user: r.user, titulo, msg, tipo:'general', link:'' });
+                    const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+                    const data = await res.json();
+                    if (data.error) { toast('Error: ' + data.error, false); }
+                    else { toast('📣 Respuesta enviada a ' + r.user); form.remove(); }
+                } catch(e) { toast('Error de conexión', false); }
+                sendBtn.disabled = false; sendBtn.textContent = '📣 Enviar respuesta';
+            };
+        };
     } else { replyBtn.classList.add('hidden'); }
 
     document.getElementById('notif-sent-modal').classList.remove('hidden');
