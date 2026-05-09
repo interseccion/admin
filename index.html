@@ -506,7 +506,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios'].forEach(t => {
+        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard'].forEach(t => {
             document.getElementById('tab-' + t).classList.toggle('hidden', t !== btn.dataset.tab);
         });
     });
