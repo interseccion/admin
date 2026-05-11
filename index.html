@@ -603,10 +603,9 @@ function getFilteredResponses() {
         if (mist && r.misterio !== mist) return false;
         if (estado === 'ignored')  return ignored.has(r.row);
         if (ignored.has(r.row) && estado !== 'ignored') return false; // ocultar ignoradas en otros filtros
-        if (estado === 'pending'  && r.correcto !== false && r.correcto !== true && r.correcto !== null) return false;
-        if (estado === 'pending'  && r.comentario)  return false; // si tiene comentario ya fue revisada
+        if (estado === 'pending'  && (r.correcto === true || r.correcto === false)) return false;
         if (estado === 'correct'  && r.correcto !== true) return false;
-        if (estado === 'wrong'    && (r.correcto !== false || !r.comentario)) return false;
+        if (estado === 'wrong'    && r.correcto !== false) return false;
         if (user && !r.idPublico?.toLowerCase().includes(user) && !r.nombre?.toLowerCase().includes(user)) return false;
         return true;
     });
@@ -628,7 +627,7 @@ function renderResponses() {
     }
 
     list.innerHTML = data.map(r => {
-        const isPending = !r.correcto && !r.comentario;
+        const isPending = r.correcto !== true && r.correcto !== false;
         const isCorrect = r.correcto === true;
         const isIgnored = getIgnoredRows().has(r.row);
         const badgeHtml = isIgnored
