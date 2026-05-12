@@ -473,7 +473,7 @@ const GAMES_INDEX_PATH = 'games/index.json';
 let mysteryTitleMap = {};
 
 async function loadMysteryTitles() {
-    // 1) Intentar desde los JSON locales (más ricos: tienen imagen, descripción, etc.)
+    // 1) Intentar desde los JSON locales
     try {
         const indexRes = await fetch(`${GAMES_INDEX_PATH}?v=${Date.now()}`);
         if (indexRes.ok) {
@@ -493,18 +493,25 @@ async function loadMysteryTitles() {
             const data = await res.json();
             if (data && !data.error) {
                 Object.entries(data).forEach(([id, nombre]) => {
-                    if (!mysteryTitleMap[id]) mysteryTitleMap[id] = nombre; // no sobreescribir JSON
+                    if (!mysteryTitleMap[id]) mysteryTitleMap[id] = nombre;
                 });
             }
         }
     } catch(e) { /* silencioso */ }
 
-    // Actualizar datalists
-    const dlMyst = document.getElementById('autocomplete-mysteries');
-    if (dlMyst) {
-        dlMyst.innerHTML = Object.entries(mysteryTitleMap)
-            .map(([id, title]) => `<option value="${esc(id)}">${esc(title)}</option>`)
-            .join('');
+    // Actualizar todos los datalists
+    const dlFilter = document.getElementById('autocomplete-mysteries-filter');
+    const dlGlobal = document.getElementById('autocomplete-mysteries');
+    const options  = Object.entries(mysteryTitleMap)
+        .map(([id, title]) => `<option value="${esc(id)}">${esc(title)}</option>`)
+        .join('');
+    if (dlFilter) dlFilter.innerHTML = options;
+    if (dlGlobal) dlGlobal.innerHTML = options;
+
+    // Re-renderizar respuestas si ya están cargadas (para que aparezcan los nombres)
+    if (allResponses.length) {
+        populateMisterioFilter();
+        renderResponses();
     }
 }
 
@@ -659,7 +666,7 @@ function getFilteredResponses() {
         }
         if (estado === 'ignored') return ignored.has(r.row);
         if (ignored.has(r.row) && estado !== 'ignored') return false;
-        const isPend = r.correcto !== true && r.correcto !== false;
+        const isPend = r.correcto === null || r.correcto === undefined;
         if (estado === 'pending' && !isPend) return false;
         if (estado === 'correct' && r.correcto !== true) return false;
         if (estado === 'wrong'   && r.correcto !== false) return false;
@@ -684,7 +691,7 @@ function renderResponses() {
     }
 
     list.innerHTML = data.map(r => {
-        const isPending = r.correcto !== true && r.correcto !== false;
+        const isPending = r.correcto === null || r.correcto === undefined;
         const isCorrect = r.correcto === true;
         const isIgnored = getIgnoredRows().has(r.row);
         const badgeHtml = isIgnored
@@ -1613,6 +1620,8 @@ async function loadDashboard() {
     btn.disabled = true; btn.textContent = '⏳ Cargando...';
     document.getElementById('dashboard-empty').textContent = '⏳ Cargando estadísticas...';
     try {
+        // Cargar nombres de misterios si aún no están disponibles
+        if (!Object.keys(mysteryTitleMap).length) await loadMysteryTitles();
         const res  = await fetch(`${APPS_SCRIPT_URL}?action=getDashboard&token=${encodeURIComponent(token)}`);
         const data = await res.json();
         if (data.error) { toast('Error: ' + data.error, false); return; }
