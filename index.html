@@ -77,9 +77,8 @@
 <div id="tab-respuestas">
     <!-- Filtros -->
     <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
-        <select id="filter-misterio" style="width:180px;">
-            <option value="">Todos los misterios</option>
-        </select>
+        <input type="text" id="filter-misterio" placeholder="🔍 Misterio..." style="width:180px;" list="autocomplete-mysteries-filter" autocomplete="off">
+        <datalist id="autocomplete-mysteries-filter"></datalist>
         <select id="filter-estado" style="width:165px;">
             <option value="">Todos los estados</option>
             <option value="pending" selected>⏳ Pendientes</option>
@@ -364,7 +363,8 @@
                         <th style="padding:8px 12px;text-align:right;">Intentos</th>
                         <th style="padding:8px 12px;text-align:right;">✅</th>
                         <th style="padding:8px 12px;text-align:right;">Tasa</th>
-                        <th style="padding:8px 16px;text-align:right;">Días hasta 1ª correcta</th>
+                        <th style="padding:8px 12px;text-align:right;" title="Días desde la última pista hasta la primera respuesta correcta">Días abierto hasta 1ª correcta</th>
+                        <th style="padding:8px 16px;text-align:right;" title="Media de días que tardó cada jugador en acertar desde su primer intento">⏱ Tiempo medio por solución</th>
                     </tr>
                 </thead>
                 <tbody id="dashboard-mystery-table"></tbody>
@@ -473,22 +473,39 @@ const GAMES_INDEX_PATH = 'games/index.json';
 let mysteryTitleMap = {};
 
 async function loadMysteryTitles() {
+    // 1) Intentar desde los JSON locales (más ricos: tienen imagen, descripción, etc.)
     try {
         const indexRes = await fetch(`${GAMES_INDEX_PATH}?v=${Date.now()}`);
-        if (!indexRes.ok) return;
-        const files = await indexRes.json();
-        const results = await Promise.all(
-            files.map(f => fetch(`games/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
-        );
-        results.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
-        // Actualizar datalist de misterios
-        const dl = document.getElementById('autocomplete-mysteries');
-        if (dl) {
-            dl.innerHTML = Object.entries(mysteryTitleMap)
-                .map(([id, title]) => `<option value="#mystery=${id}" label="${title}">`)
-                .join('');
+        if (indexRes.ok) {
+            const files = await indexRes.json();
+            const results = await Promise.all(
+                files.map(f => fetch(`games/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
+            );
+            results.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
         }
-    } catch(e) { console.warn('No se pudieron cargar títulos de misterios:', e); }
+    } catch(e) { /* silencioso */ }
+
+    // 2) Fallback / complemento: nombres desde PARÁMETROS del GAS
+    try {
+        const token = document.getElementById('admin-token').value.trim();
+        if (token) {
+            const res  = await fetch(`${APPS_SCRIPT_URL}?action=getMysteryNames&token=${encodeURIComponent(token)}`);
+            const data = await res.json();
+            if (data && !data.error) {
+                Object.entries(data).forEach(([id, nombre]) => {
+                    if (!mysteryTitleMap[id]) mysteryTitleMap[id] = nombre; // no sobreescribir JSON
+                });
+            }
+        }
+    } catch(e) { /* silencioso */ }
+
+    // Actualizar datalists
+    const dlMyst = document.getElementById('autocomplete-mysteries');
+    if (dlMyst) {
+        dlMyst.innerHTML = Object.entries(mysteryTitleMap)
+            .map(([id, title]) => `<option value="${esc(id)}">${esc(title)}</option>`)
+            .join('');
+    }
 }
 
 // Devuelve el título bonito, con el ID en tooltip; muestra ID si no se encontró título
@@ -601,10 +618,17 @@ document.getElementById('clear-filters-btn')?.addEventListener('click', () => {
 });
 
 function populateMisterioFilter() {
-    const sel = document.getElementById('filter-misterio');
+    const dl  = document.getElementById('autocomplete-mysteries-filter');
     const ids = [...new Set(allResponses.map(r => r.misterio))].filter(Boolean).sort();
-    sel.innerHTML = '<option value="">Todos los misterios</option>' +
-        ids.map(id => `<option value="${id}">${mysteryTitleMap[id] || id}</option>`).join('');
+    if (dl) dl.innerHTML = ids.map(id => {
+        const name = mysteryTitleMap[id] || id;
+        return `<option value="${esc(id)}">${esc(name)}</option>`;
+    }).join('');
+    // También actualizar el datalist global de misterios
+    const dlGlobal = document.getElementById('autocomplete-mysteries');
+    if (dlGlobal) dlGlobal.innerHTML = Object.entries(mysteryTitleMap)
+        .map(([id, title]) => `<option value="${esc(id)}">${esc(title)}</option>`)
+        .join('');
 }
 
 
@@ -627,7 +651,12 @@ function getFilteredResponses() {
     const user    = document.getElementById('filter-user').value.toLowerCase();
     const ignored = getIgnoredRows();
     const filtered = allResponses.filter(r => {
-        if (mist && r.misterio !== mist) return false;
+        if (mist) {
+            const mistLower = mist.toLowerCase();
+            const idMatch    = r.misterio?.toLowerCase().includes(mistLower);
+            const nameMatch  = mysteryTitleMap[r.misterio]?.toLowerCase().includes(mistLower);
+            if (!idMatch && !nameMatch) return false;
+        }
         if (estado === 'ignored') return ignored.has(r.row);
         if (ignored.has(r.row) && estado !== 'ignored') return false;
         const isPend = r.correcto !== true && r.correcto !== false;
@@ -1661,6 +1690,7 @@ function renderDashboard(d) {
                 <span style="color:${tasaColor};font-weight:700;">${m.tasa}%</span>${bar}
             </td>
             <td style="padding:9px 16px;text-align:right;color:#79c0ff;">${diasText}</td>
+            <td style="padding:9px 16px;text-align:right;color:#a78bfa;">${m.tiempoMedioPorSolucion != null ? m.tiempoMedioPorSolucion + 'd' : '—'}</td>
         </tr>`;
     }).join('') || '<tr><td colspan="5" style="padding:20px;text-align:center;color:#8b949e;">Sin datos</td></tr>';
 }
