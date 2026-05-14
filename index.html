@@ -70,6 +70,7 @@
     <button class="tab-btn" data-tab="misterios">🔍 Misterios</button>
     <button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
     <button class="tab-btn" data-tab="cuentas">🔑 Cuentas</button>
+    <button class="tab-btn" data-tab="incidencias">🔴 Incidencias</button>
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
@@ -517,15 +518,26 @@
         <div id="migrate-result" style="margin-top:12px;font-size:12px;display:none;"></div>
     </div>
 
-    <!-- Validar ID -->
+    <!-- Validar y decodificar ID -->
     <div class="card p-6">
-        <h2 style="font-size:16px;font-weight:700;color:#e6edf3;margin-bottom:4px;">🔍 Validar ID</h2>
-        <p style="font-size:12px;color:#8b949e;margin-bottom:12px;">Comprueba si un ID privado existe en PRIVADO.</p>
-        <div style="display:flex;gap:12px;max-width:600px;flex-wrap:wrap;">
+        <h2 style="font-size:16px;font-weight:700;color:#e6edf3;margin-bottom:4px;">🔍 Validar y decodificar ID</h2>
+        <p style="font-size:12px;color:#8b949e;margin-bottom:12px;">Muestra fecha, nombre, usuario y longitud de cada parte para detectar modificaciones.</p>
+        <div style="display:flex;gap:12px;max-width:700px;flex-wrap:wrap;">
             <input type="text" id="validate-id-input" placeholder="ID privado a comprobar" style="flex:1;font-size:11px;" autocomplete="off">
-            <button class="btn btn-gray" id="validate-id-btn">🔍 Comprobar</button>
+            <button class="btn btn-gray" id="validate-id-btn">🔍 Decodificar</button>
         </div>
-        <p id="validate-id-result" style="font-size:12px;margin-top:10px;"></p>
+        <div id="validate-id-result" style="margin-top:14px;font-size:12px;"></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ TAB: INCIDENCIAS ═══════════════════════ -->
+<div id="tab-incidencias" class="hidden">
+    <div class="card p-4 mb-4 flex gap-3 items-center flex-wrap">
+        <button class="btn btn-primary" id="load-incidencias-btn">🔄 Cargar incidencias</button>
+        <span style="font-size:12px;color:#8b949e;" id="incidencias-count"></span>
+    </div>
+    <div id="incidencias-list">
+        <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar incidencias" para ver los reportes de IDs corruptos y otros bugs.</p>
     </div>
 </div>
 
@@ -612,8 +624,9 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas'].forEach(t => {
-            document.getElementById('tab-' + t).classList.toggle('hidden', t !== btn.dataset.tab);
+        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias'].forEach(t => {
+            const el = document.getElementById('tab-' + t);
+            if (el) el.classList.toggle('hidden', t !== btn.dataset.tab);
         });
     });
 });
@@ -1944,8 +1957,8 @@ document.getElementById('new-username')?.addEventListener('input', () => {
             if (data.available) {
                 msg.textContent = '✓ Disponible'; msg.style.color = '#3fb950';
             } else {
-                msg.textContent = `✗ Ya en uso — sugerencia: "${data.suggestion || val+'2'}"`;
-                msg.style.color = '#f85149';
+                msg.textContent = `✗ Nombre ya en uso — sugerencia: "${data.suggestion || val+'2'}"`;
+                msg.style.color = '#f87171'; // rojo
             }
         } catch(e) { msg.textContent = ''; }
     }, 600);
@@ -2049,21 +2062,120 @@ document.getElementById('migrate-id-btn')?.addEventListener('click', async () =>
     btn.disabled = false; btn.textContent = '🔄 Migrar ID';
 });
 
-// ── Validar ID ──
+// ── Validar y decodificar ID ──
 document.getElementById('validate-id-btn')?.addEventListener('click', async () => {
     const token   = document.getElementById('admin-token').value.trim();
     const idInput = document.getElementById('validate-id-input').value.trim();
     const resultEl = document.getElementById('validate-id-result');
-    if (!token || !idInput) { toast('Introduce el token y el ID a comprobar', false); return; }
-    try {
-        const res  = await fetch(`${APPS_SCRIPT_URL}?action=validateId&token=${encodeURIComponent(token)}&privateId=${encodeURIComponent(idInput)}`);
-        const data = await res.json();
-        resultEl.textContent = data.valid
-            ? '✅ ID válido — existe en PRIVADO'
-            : '❌ ID no encontrado en PRIVADO';
-        resultEl.style.color = data.valid ? '#3fb950' : '#f85149';
-    } catch(e) { resultEl.textContent = 'Error de conexión'; resultEl.style.color = '#f85149'; }
+    if (!idInput) { toast('Introduce un ID', false); return; }
+
+    // Decodificación local (no necesita servidor)
+    let decoded = '<div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:14px;">';
+    if (idInput.includes('~')) {
+        const parts = idInput.split('~');
+        const [user, nameEnc, dateB36, rand] = parts;
+        // Decodificar nombre
+        let displayName = '(error al decodificar)';
+        try {
+            const b64 = nameEnc.replace(/-/g,'+').replace(/_/g,'/');
+            displayName = decodeURIComponent(escape(atob(b64)));
+        } catch(e) {
+            try { displayName = atob(nameEnc); } catch(e2) {}
+        }
+        // Decodificar fecha
+        let dateStr = '(error)';
+        try {
+            const yyyymmdd = parseInt(dateB36, 36);
+            const y = Math.floor(yyyymmdd / 10000);
+            const m = Math.floor((yyyymmdd % 10000) / 100);
+            const d = yyyymmdd % 100;
+            dateStr = `${d}/${m}/${y}`;
+        } catch(e) {}
+
+        const expectedRandLen = 32;
+        const randOk = rand?.length === expectedRandLen;
+        const flag = (ok, label) => `<span style="color:${ok?'#3fb950':'#f85149'};font-weight:700">${ok?'✓':'✗'}</span> ${label}`;
+
+        decoded += `<table style="border-collapse:collapse;width:100%;font-size:11px;">
+            <tr style="border-bottom:1px solid #21262d;">
+                <th style="color:#8b949e;padding:6px 10px;text-align:left;width:140px;">Parte</th>
+                <th style="color:#8b949e;padding:6px 10px;text-align:left;">Valor</th>
+                <th style="color:#8b949e;padding:6px 10px;text-align:right;">Longitud</th>
+            </tr>
+            <tr style="border-bottom:1px solid #21262d;"><td style="padding:7px 10px;color:#8b949e">Usuario</td>
+                <td style="padding:7px 10px;color:#e6edf3;font-family:monospace">${esc(user)}</td>
+                <td style="padding:7px 10px;text-align:right;color:#79c0ff">${user?.length}</td></tr>
+            <tr style="border-bottom:1px solid #21262d;"><td style="padding:7px 10px;color:#8b949e">Nombre display</td>
+                <td style="padding:7px 10px;color:#e6edf3">${esc(displayName)}</td>
+                <td style="padding:7px 10px;text-align:right;color:#79c0ff">${nameEnc?.length} (enc)</td></tr>
+            <tr style="border-bottom:1px solid #21262d;"><td style="padding:7px 10px;color:#8b949e">Fecha creación</td>
+                <td style="padding:7px 10px;color:#e6edf3">${dateStr} <span style="color:#484f58">(${dateB36})</span></td>
+                <td style="padding:7px 10px;text-align:right;color:#79c0ff">${dateB36?.length}</td></tr>
+            <tr><td style="padding:7px 10px;color:#8b949e">Parte aleatoria</td>
+                <td style="padding:7px 10px;font-family:monospace;font-size:10px;color:${randOk?'#e6edf3':'#f85149'}">${esc(rand)} ${flag(randOk, randOk ? '(32 chars ✓)' : `(${rand?.length} chars — esperados 32)`)}</td>
+                <td style="padding:7px 10px;text-align:right;color:${randOk?'#79c0ff':'#f85149'}">${rand?.length}</td></tr>
+        </table>
+        <div style="margin-top:10px;padding:8px 10px;background:#0a0c12;border-radius:6px;font-family:monospace;font-size:10px;color:#64748b;word-break:break-all">${esc(idInput)}</div>`;
+    } else {
+        decoded += `<p style="color:#fbbf24">⚠ Formato v1 (UUID antiguo) — no decodificable, considera migrar</p>`;
+    }
+    decoded += '</div>';
+
+    // Validación en servidor (si hay token)
+    if (token) {
+        try {
+            const res  = await fetch(`${APPS_SCRIPT_URL}?action=validateId&token=${encodeURIComponent(token)}&privateId=${encodeURIComponent(idInput)}`);
+            const data = await res.json();
+            decoded += `<p style="margin-top:8px;font-weight:700;color:${data.valid?'#3fb950':'#f85149'}">
+                ${data.valid ? '✅ ID encontrado en PRIVADO' : '❌ ID NO encontrado en PRIVADO'}</p>`;
+        } catch(e) {}
+    } else {
+        decoded += `<p style="margin-top:8px;color:#8b949e;font-size:11px;">(introduce el token para comprobar si existe en PRIVADO)</p>`;
+    }
+
+    resultEl.innerHTML = decoded;
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// TAB: INCIDENCIAS
+// ═══════════════════════════════════════════════════════════════════
+document.getElementById('load-incidencias-btn')?.addEventListener('click', loadIncidencias);
+
+async function loadIncidencias() {
+    const token = document.getElementById('admin-token').value.trim();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    const btn = document.getElementById('load-incidencias-btn');
+    btn.disabled = true; btn.textContent = '⏳ Cargando…';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getFeedback&token=${encodeURIComponent(token)}&tipo=corrupto`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        renderIncidencias(data.filter ? data.filter(f => f.tipo === 'corrupto' || f.tipo === 'bug') : data);
+    } catch(e) { toast('Error de conexión', false); }
+    btn.disabled = false; btn.textContent = '🔄 Cargar incidencias';
+}
+
+function renderIncidencias(items) {
+    const list = document.getElementById('incidencias-list');
+    document.getElementById('incidencias-count').textContent = items.length + ' incidencia' + (items.length===1?'':'s');
+    if (!items.length) {
+        list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin incidencias reportadas.</p>';
+        return;
+    }
+    list.innerHTML = items.map(f => `
+        <div class="card p-4 mb-3" style="border-left:3px solid ${f.tipo==='corrupto'?'#f85149':'#fbbf24'}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+                <div>
+                    <span class="badge" style="background:${f.tipo==='corrupto'?'rgba(248,81,73,.15)':'rgba(251,191,36,.15)'};color:${f.tipo==='corrupto'?'#f85149':'#fbbf24'};border:1px solid ${f.tipo==='corrupto'?'rgba(248,81,73,.3)':'rgba(251,191,36,.3)'};">${esc(f.tipo||'bug')}</span>
+                    <span style="font-size:11px;color:#8b949e;margin-left:8px;">${f.fecha ? new Date(f.fecha).toLocaleString('es') : '—'}</span>
+                </div>
+                <span style="font-size:11px;color:#79c0ff;font-family:monospace">${esc(f.idPublico||'anon')}</span>
+            </div>
+            <p style="margin-top:8px;font-size:12px;color:#e6edf3;word-break:break-all;">${esc(f.texto||'')}</p>
+            ${f.texto?.includes('~') ? `<button onclick="document.getElementById('validate-id-input').value='${esc(f.texto.match(/[a-z0-9~_-]{30,}/)?.[0]||'')}';document.querySelector('[data-tab=cuentas]').click();document.getElementById('validate-id-btn').click();" style="background:none;border:1px solid #21262d;color:#8b949e;font-size:10px;padding:3px 8px;border-radius:4px;cursor:pointer;margin-top:6px;">🔍 Decodificar ID</button>` : ''}
+        </div>`).join('');
+}
+
 </script>
 </body>
 </html>
