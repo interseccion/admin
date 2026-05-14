@@ -69,6 +69,7 @@
     <button class="tab-btn" data-tab="usuarios">👥 Usuarios</button>
     <button class="tab-btn" data-tab="misterios">🔍 Misterios</button>
     <button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
+    <button class="tab-btn" data-tab="cuentas">🔑 Cuentas</button>
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
@@ -457,6 +458,74 @@
             <button class="btn btn-gray" onclick="document.getElementById('user-profile-modal').classList.add('hidden')">Cerrar</button>
             <button class="btn btn-blue" id="upm-send-notif-btn">🔔 Enviar notificación</button>
         </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════ TAB: CUENTAS ═══════════════════════ -->
+<div id="tab-cuentas" class="hidden">
+
+    <!-- Crear nueva cuenta -->
+    <div class="card p-6 mb-4">
+        <h2 style="font-size:16px;font-weight:700;color:#e6edf3;margin-bottom:16px;">🆕 Crear nueva cuenta</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:600px;">
+            <div>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Nombre de usuario (solo minúsculas, sin espacios)</label>
+                <input type="text" id="new-username" placeholder="ej: ana_garcia" style="width:100%;" autocomplete="off" spellcheck="false">
+                <p id="username-check-msg" style="font-size:11px;margin-top:4px;"></p>
+            </div>
+            <div>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Nombre de display (el que verá la gente)</label>
+                <input type="text" id="new-displayname" placeholder="ej: Ana García" style="width:100%;">
+            </div>
+        </div>
+        <div style="margin-top:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="create-account-btn">✨ Crear cuenta en servidor</button>
+            <span style="font-size:11px;color:#8b949e;">El ID privado se genera en el servidor — nunca en el cliente</span>
+        </div>
+        <div id="create-account-result" style="margin-top:16px;display:none;">
+            <div class="card p-4" style="background:#0d1117;border-color:#238636;">
+                <p style="font-size:12px;color:#3fb950;font-weight:700;margin-bottom:8px;">✅ Cuenta creada</p>
+                <div style="font-size:11px;color:#8b949e;line-height:1.8;">
+                    <div>ID público: <span id="result-public-id" style="color:#79c0ff;font-family:monospace;"></span></div>
+                    <div>ID privado: <span id="result-private-id" style="color:#8b949e;font-family:monospace;font-size:10px;word-break:break-all;"></span></div>
+                </div>
+                <button class="btn btn-gray" style="margin-top:10px;font-size:11px;" id="download-id-admin-btn">⬇ Descargar archivo ID</button>
+                <button class="btn btn-gray" style="margin-top:10px;font-size:11px;margin-left:6px;" id="copy-private-id-btn">📋 Copiar ID privado</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Migrar ID v1 → v2 -->
+    <div class="card p-6 mb-4">
+        <h2 style="font-size:16px;font-weight:700;color:#e6edf3;margin-bottom:4px;">🔄 Migrar ID antiguo → formato v2</h2>
+        <p style="font-size:12px;color:#8b949e;margin-bottom:16px;">Para usuarios con el formato UUID-antiguo que necesitan pasar al nuevo sistema.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;max-width:800px;">
+            <div>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">ID antiguo (v1)</label>
+                <input type="text" id="migrate-old-id" placeholder="UUID antiguo" style="width:100%;font-size:11px;" autocomplete="off">
+            </div>
+            <div>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Nombre de usuario nuevo</label>
+                <input type="text" id="migrate-username" placeholder="sin espacios" style="width:100%;">
+            </div>
+            <div>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Nombre de display</label>
+                <input type="text" id="migrate-displayname" placeholder="Nombre visible" style="width:100%;">
+            </div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:16px;" id="migrate-id-btn">🔄 Migrar ID</button>
+        <div id="migrate-result" style="margin-top:12px;font-size:12px;display:none;"></div>
+    </div>
+
+    <!-- Validar ID -->
+    <div class="card p-6">
+        <h2 style="font-size:16px;font-weight:700;color:#e6edf3;margin-bottom:4px;">🔍 Validar ID</h2>
+        <p style="font-size:12px;color:#8b949e;margin-bottom:12px;">Comprueba si un ID privado existe en PRIVADO.</p>
+        <div style="display:flex;gap:12px;max-width:600px;flex-wrap:wrap;">
+            <input type="text" id="validate-id-input" placeholder="ID privado a comprobar" style="flex:1;font-size:11px;" autocomplete="off">
+            <button class="btn btn-gray" id="validate-id-btn">🔍 Comprobar</button>
+        </div>
+        <p id="validate-id-result" style="font-size:12px;margin-top:10px;"></p>
     </div>
 </div>
 
@@ -1847,6 +1916,154 @@ async function openUserProfileById(idPublico) {
 // UTILIDADES
 // ═══════════════════════════════════════════════════════════════════
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ═══════════════════════════════════════════════════════════════════
+// TAB: CUENTAS — crear, migrar y validar IDs desde el panel de admin
+// ═══════════════════════════════════════════════════════════════════
+
+let lastCreatedId = null;
+
+// ── Comprobar username en tiempo real ──
+let usernameCheckTimer = null;
+document.getElementById('new-username')?.addEventListener('input', () => {
+    clearTimeout(usernameCheckTimer);
+    const val = document.getElementById('new-username').value.trim().toLowerCase();
+    const msg = document.getElementById('username-check-msg');
+    if (!val) { msg.textContent = ''; return; }
+    if (!/^[a-z0-9_.-]{2,30}$/.test(val)) {
+        msg.textContent = '⚠ Solo letras, números, guión y punto. Entre 2 y 30 caracteres.';
+        msg.style.color = '#fbbf24'; return;
+    }
+    msg.textContent = '⏳ Comprobando…'; msg.style.color = '#8b949e';
+    usernameCheckTimer = setTimeout(async () => {
+        const token = document.getElementById('admin-token').value.trim();
+        if (!token) { msg.textContent = '(introduce el token para comprobar)'; return; }
+        try {
+            const res  = await fetch(`${APPS_SCRIPT_URL}?action=checkUsername&username=${encodeURIComponent(val)}&token=${encodeURIComponent(token)}`);
+            const data = await res.json();
+            if (data.available) {
+                msg.textContent = '✓ Disponible'; msg.style.color = '#3fb950';
+            } else {
+                msg.textContent = `✗ Ya en uso — sugerencia: "${data.suggestion || val+'2'}"`;
+                msg.style.color = '#f85149';
+            }
+        } catch(e) { msg.textContent = ''; }
+    }, 600);
+});
+
+// ── Crear cuenta ──
+document.getElementById('create-account-btn')?.addEventListener('click', async () => {
+    const token       = document.getElementById('admin-token').value.trim();
+    const username    = document.getElementById('new-username').value.trim().toLowerCase();
+    const displayName = document.getElementById('new-displayname').value.trim();
+    if (!token)       { toast('Introduce el token admin', false); return; }
+    if (!username)    { toast('Introduce el nombre de usuario', false); return; }
+    if (!displayName) { toast('Introduce el nombre de display', false); return; }
+
+    const btn = document.getElementById('create-account-btn');
+    btn.disabled = true; btn.textContent = '⏳ Creando…';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=createAccount&token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}&displayName=${encodeURIComponent(displayName)}`);
+        const data = await res.json();
+        if (!data.ok) {
+            const msg = data.error === 'username_taken'
+                ? `El nombre "${username}" ya está registrado. Sugerencia: ${data.suggestion}`
+                : data.error || 'Error desconocido';
+            toast('❌ ' + msg, false);
+        } else {
+            lastCreatedId = data.privateId;
+            document.getElementById('result-public-id').textContent  = data.publicId;
+            document.getElementById('result-private-id').textContent = data.privateId;
+            document.getElementById('create-account-result').style.display = 'block';
+            document.getElementById('new-username').value    = '';
+            document.getElementById('new-displayname').value = '';
+            document.getElementById('username-check-msg').textContent = '';
+            toast('✅ Cuenta creada: ' + data.publicId);
+        }
+    } catch(e) { toast('Error de conexión', false); }
+    btn.disabled = false; btn.textContent = '✨ Crear cuenta en servidor';
+});
+
+// ── Descargar archivo ID ──
+document.getElementById('download-id-admin-btn')?.addEventListener('click', () => {
+    if (!lastCreatedId) return;
+    const publicId    = document.getElementById('result-public-id').textContent;
+    const displayName = lastCreatedId.split('~')[0] || publicId;
+    const baseUrl     = window.location.origin + window.location.pathname.replace('admin_respuestas.html', 'index.html');
+    const htmlContent = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mi ID — La Intersección</title>
+<style>body{background:#0a0c12;color:#e2e8f0;font-family:monospace;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
+.card{background:#111420;border:1px solid #232840;border-radius:16px;padding:32px;max-width:480px;width:90%;text-align:center}
+h1{font-family:serif;color:#a78bfa;font-size:22px;margin:0 0 20px}
+.label{font-size:11px;color:#64748b;text-transform:uppercase;margin:14px 0 4px}
+.code{background:#0a0c12;border:1px solid #1e2240;border-radius:8px;padding:10px;font-size:12px;word-break:break-all;color:#e2e8f0}
+.btn{display:inline-block;background:#6c63ff;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;margin-top:20px;cursor:pointer}
+</style></head><body><div class="card">
+<h1>🔍 La Intersección</h1>
+<div class="label">ID público</div><div class="code">${esc(publicId)}</div>
+<div class="label">ID privado (no compartir)</div><div class="code" style="font-size:10px">${esc(lastCreatedId)}</div>
+<a href="${baseUrl}#restore_id=${encodeURIComponent(lastCreatedId)}" class="btn">Entrar al Juego</a>
+</div>
+<script>setTimeout(()=>{window.location.href="${baseUrl}#restore_id=${encodeURIComponent(lastCreatedId)}";},1200);<\/script>
+</body></html>`;
+    const blob = new Blob([htmlContent], {type:'text/html'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = `id_${publicId.replace('#','_')}.html`; a.click();
+    URL.revokeObjectURL(url);
+    toast('⬇ Archivo descargado');
+});
+
+// ── Copiar ID privado ──
+document.getElementById('copy-private-id-btn')?.addEventListener('click', async () => {
+    if (!lastCreatedId) return;
+    try { await navigator.clipboard.writeText(lastCreatedId); toast('📋 ID copiado'); }
+    catch(e) { toast('No se pudo copiar', false); }
+});
+
+// ── Migrar ID ──
+document.getElementById('migrate-id-btn')?.addEventListener('click', async () => {
+    const token       = document.getElementById('admin-token').value.trim();
+    const oldId       = document.getElementById('migrate-old-id').value.trim();
+    const username    = document.getElementById('migrate-username').value.trim().toLowerCase();
+    const displayName = document.getElementById('migrate-displayname').value.trim();
+    const resultEl    = document.getElementById('migrate-result');
+    if (!token || !oldId || !username) { toast('Rellena todos los campos + token', false); return; }
+
+    const btn = document.getElementById('migrate-id-btn');
+    btn.disabled = true; btn.textContent = '⏳ Migrando…';
+    resultEl.style.display = 'none';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=migrateId&token=${encodeURIComponent(token)}&oldId=${encodeURIComponent(oldId)}&username=${encodeURIComponent(username)}&displayName=${encodeURIComponent(displayName||username)}`);
+        const data = await res.json();
+        if (!data.ok) {
+            resultEl.innerHTML = `<span style="color:#f85149">❌ ${esc(data.error)}</span>`;
+        } else {
+            resultEl.innerHTML = `<div style="color:#3fb950;font-weight:700;margin-bottom:6px">✅ Migración completada</div>
+                <div style="color:#8b949e">ID público nuevo: <span style="color:#79c0ff;font-family:monospace">${esc(data.publicId)}</span></div>
+                <div style="color:#8b949e;font-size:10px;word-break:break-all;margin-top:4px">ID privado: <span style="font-family:monospace">${esc(data.privateId)}</span></div>`;
+        }
+        resultEl.style.display = 'block';
+    } catch(e) { resultEl.innerHTML = '<span style="color:#f85149">Error de conexión</span>'; resultEl.style.display = 'block'; }
+    btn.disabled = false; btn.textContent = '🔄 Migrar ID';
+});
+
+// ── Validar ID ──
+document.getElementById('validate-id-btn')?.addEventListener('click', async () => {
+    const token   = document.getElementById('admin-token').value.trim();
+    const idInput = document.getElementById('validate-id-input').value.trim();
+    const resultEl = document.getElementById('validate-id-result');
+    if (!token || !idInput) { toast('Introduce el token y el ID a comprobar', false); return; }
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=validateId&token=${encodeURIComponent(token)}&privateId=${encodeURIComponent(idInput)}`);
+        const data = await res.json();
+        resultEl.textContent = data.valid
+            ? '✅ ID válido — existe en PRIVADO'
+            : '❌ ID no encontrado en PRIVADO';
+        resultEl.style.color = data.valid ? '#3fb950' : '#f85149';
+    } catch(e) { resultEl.textContent = 'Error de conexión'; resultEl.style.color = '#f85149'; }
+});
 </script>
 </body>
 </html>
