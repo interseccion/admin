@@ -2062,79 +2062,154 @@ document.getElementById('migrate-id-btn')?.addEventListener('click', async () =>
     btn.disabled = false; btn.textContent = '🔄 Migrar ID';
 });
 
-// ── Validar y decodificar ID ──
+// ── Validar, decodificar y editar ID ──
 document.getElementById('validate-id-btn')?.addEventListener('click', async () => {
-    const token   = document.getElementById('admin-token').value.trim();
-    const idInput = document.getElementById('validate-id-input').value.trim();
+    const token    = document.getElementById('admin-token').value.trim();
+    const idInput  = document.getElementById('validate-id-input').value.trim();
     const resultEl = document.getElementById('validate-id-result');
     if (!idInput) { toast('Introduce un ID', false); return; }
 
-    // Decodificación local (no necesita servidor)
-    let decoded = '<div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:14px;">';
+    let decoded = '';
+    let publicId = '';
     if (idInput.includes('~')) {
         const parts = idInput.split('~');
         const [user, nameEnc, dateB36, rand] = parts;
-        // Decodificar nombre
-        let displayName = '(error al decodificar)';
+        let displayName = '(error)', displayNameLen = 0;
         try {
             const b64 = nameEnc.replace(/-/g,'+').replace(/_/g,'/');
             displayName = decodeURIComponent(escape(atob(b64)));
-        } catch(e) {
-            try { displayName = atob(nameEnc); } catch(e2) {}
-        }
-        // Decodificar fecha
+            displayNameLen = displayName.length;
+        } catch(e) { try { displayName = atob(nameEnc); displayNameLen = displayName.length; } catch(e2){} }
         let dateStr = '(error)';
         try {
-            const yyyymmdd = parseInt(dateB36, 36);
-            const y = Math.floor(yyyymmdd / 10000);
-            const m = Math.floor((yyyymmdd % 10000) / 100);
-            const d = yyyymmdd % 100;
-            dateStr = `${d}/${m}/${y}`;
+            const n = parseInt(dateB36, 36);
+            dateStr = `${n%100}/${Math.floor((n%10000)/100)}/${Math.floor(n/10000)}`;
         } catch(e) {}
-
-        const expectedRandLen = 32;
-        const randOk = rand?.length === expectedRandLen;
+        const randOk = rand?.length === 32;
+        publicId = `${user}#${(rand||'').slice(0,4)}`;
         const flag = (ok, label) => `<span style="color:${ok?'#3fb950':'#f85149'};font-weight:700">${ok?'✓':'✗'}</span> ${label}`;
 
-        decoded += `<table style="border-collapse:collapse;width:100%;font-size:11px;">
+        decoded = `<div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:14px;margin-bottom:12px;">
+        <table style="border-collapse:collapse;width:100%;font-size:11px;">
             <tr style="border-bottom:1px solid #21262d;">
-                <th style="color:#8b949e;padding:6px 10px;text-align:left;width:140px;">Parte</th>
+                <th style="color:#8b949e;padding:6px 10px;text-align:left;width:130px;">Parte</th>
                 <th style="color:#8b949e;padding:6px 10px;text-align:left;">Valor</th>
-                <th style="color:#8b949e;padding:6px 10px;text-align:right;">Longitud</th>
-            </tr>
-            <tr style="border-bottom:1px solid #21262d;"><td style="padding:7px 10px;color:#8b949e">Usuario</td>
-                <td style="padding:7px 10px;color:#e6edf3;font-family:monospace">${esc(user)}</td>
-                <td style="padding:7px 10px;text-align:right;color:${(user?.length||0)<=30?'#79c0ff':'#f85149'}">${user?.length} chars ${(user?.length||0)<=30?'✓':'⚠'} (máx 30)</td></tr>
-            <tr style="border-bottom:1px solid #21262d;"><td style="padding:7px 10px;color:#8b949e">Nombre display</td>
-                <td style="padding:7px 10px;color:#e6edf3">${esc(displayName)} <span style="color:#484f58;font-size:10px">(codif: ${nameEnc?.length} chars)</span></td>
-                <td style="padding:7px 10px;text-align:right;color:${displayName.length<=20?'#79c0ff':'#f85149'}">${displayName.length} chars ${displayName.length<=20?'✓':'⚠'} (máx 20)</td></tr>
-            <tr style="border-bottom:1px solid #21262d;"><td style="padding:7px 10px;color:#8b949e">Fecha creación</td>
-                <td style="padding:7px 10px;color:#e6edf3">${dateStr} <span style="color:#484f58">(${dateB36})</span></td>
-                <td style="padding:7px 10px;text-align:right;color:#79c0ff">${dateB36?.length} chars</td></tr>
-            <tr><td style="padding:7px 10px;color:#8b949e">Parte aleatoria</td>
-                <td style="padding:7px 10px;font-family:monospace;font-size:10px;color:${randOk?'#e6edf3':'#f85149'};word-break:break-all">${esc(rand)} ${flag(randOk, randOk ? '(32 chars ✓)' : `(${rand?.length} — esperados 32)`)}</td>
-                <td style="padding:7px 10px;text-align:right;color:${randOk?'#79c0ff':'#f85149'}">${rand?.length} chars</td></tr>
+                <th style="color:#8b949e;padding:6px 10px;text-align:right;">Longitud</th></tr>
+            <tr style="border-bottom:1px solid #21262d;"><td style="padding:6px 10px;color:#8b949e">Usuario</td>
+                <td style="padding:6px 10px;font-family:monospace;color:#e6edf3">${esc(user)}</td>
+                <td style="padding:6px 10px;text-align:right;color:${(user?.length||0)<=30?'#79c0ff':'#f85149'}">${user?.length} ${(user?.length||0)<=30?'✓':'⚠'} (máx 30)</td></tr>
+            <tr style="border-bottom:1px solid #21262d;"><td style="padding:6px 10px;color:#8b949e">Nombre display</td>
+                <td style="padding:6px 10px;color:#e6edf3">${esc(displayName)} <span style="color:#484f58;font-size:10px">(${nameEnc?.length} enc)</span></td>
+                <td style="padding:6px 10px;text-align:right;color:${displayNameLen<=20?'#79c0ff':'#f85149'}">${displayNameLen} ${displayNameLen<=20?'✓':'⚠'} (máx 20)</td></tr>
+            <tr style="border-bottom:1px solid #21262d;"><td style="padding:6px 10px;color:#8b949e">Fecha</td>
+                <td style="padding:6px 10px;color:#e6edf3">${dateStr} <span style="color:#484f58">(${dateB36})</span></td>
+                <td style="padding:6px 10px;text-align:right;color:#79c0ff">${dateB36?.length}</td></tr>
+            <tr><td style="padding:6px 10px;color:#8b949e">Aleatoria</td>
+                <td style="padding:6px 10px;font-family:monospace;font-size:10px;color:${randOk?'#e6edf3':'#f85149'};word-break:break-all">${esc(rand)}</td>
+                <td style="padding:6px 10px;text-align:right;color:${randOk?'#79c0ff':'#f85149'}">${rand?.length} ${flag(randOk,'')}</td></tr>
         </table>
-        <div style="margin-top:10px;padding:8px 10px;background:#0a0c12;border-radius:6px;font-family:monospace;font-size:10px;color:#64748b;word-break:break-all">${esc(idInput)}</div>`;
+        <div style="margin-top:8px;font-family:monospace;font-size:10px;color:#484f58;word-break:break-all;padding:6px 8px;background:#0a0c12;border-radius:4px">${esc(idInput)}</div>
+        </div>
+        <div style="background:#0a0c12;border:1px solid #21262d;border-radius:8px;padding:12px;margin-bottom:12px;">
+            <p style="color:#8b949e;font-size:10px;text-transform:uppercase;font-weight:700;margin-bottom:10px;">✏️ Editar y notificar</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                <div><label style="font-size:10px;color:#8b949e;">Usuario</label>
+                    <input id="edit-user" value="${esc(user||'')}" maxlength="30" style="width:100%;font-size:11px;margin-top:2px;" oninput="editRebuildId()"></div>
+                <div><label style="font-size:10px;color:#8b949e;">Nombre display (máx 20)</label>
+                    <input id="edit-name" value="${esc(displayName||'')}" maxlength="20" style="width:100%;font-size:11px;margin-top:2px;" oninput="editRebuildId()"></div>
+            </div>
+            <div style="margin-bottom:8px;">
+                <label style="font-size:10px;color:#8b949e;">Parte aleatoria (32 base36)
+                    <button onclick="editCompletarRandom('${esc(randOk?'':rand||'')}')" style="margin-left:8px;background:rgba(108,99,255,.2);border:1px solid rgba(108,99,255,.4);color:#a78bfa;font-size:10px;padding:1px 8px;border-radius:4px;cursor:pointer;">🔐 ${randOk?'Regenerar':'Completar'} con cripto</button>
+                </label>
+                <input id="edit-rand" value="${esc(rand||'')}" maxlength="32" style="width:100%;font-family:monospace;font-size:11px;margin-top:2px;" oninput="editRebuildId()">
+            </div>
+            <div style="margin-bottom:8px;">
+                <label style="font-size:10px;color:#8b949e;">ID resultante</label>
+                <input id="edit-full-id" value="${esc(idInput)}" style="width:100%;font-family:monospace;font-size:10px;color:#79c0ff;margin-top:2px;">
+            </div>
+            <div style="margin-bottom:8px;">
+                <label style="font-size:10px;color:#8b949e;">ID público destinatario</label>
+                <input id="edit-public-id" value="${esc(publicId)}" style="width:100%;font-size:11px;margin-top:2px;">
+            </div>
+            <div style="margin-bottom:10px;">
+                <label style="font-size:10px;color:#8b949e;display:block;margin-bottom:4px;">Mensaje para el usuario</label>
+                <textarea id="edit-msg" rows="2" style="width:100%;font-size:11px;background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:6px;color:#e6edf3;resize:vertical;">Tu cuenta ha sido actualizada. Pulsa el botón para restaurar tu sesión con el nuevo ID.</textarea>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <button onclick="editRebuildId(); editEnviarReparacion();" id="edit-send-btn"
+                    style="background:#6c63ff;color:#fff;border:none;padding:7px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">
+                    📬 Guardar y notificar al usuario
+                </button>
+                <span id="edit-send-status" style="font-size:11px;"></span>
+            </div>
+        </div>`;
     } else {
-        decoded += `<p style="color:#fbbf24">⚠ Formato v1 (UUID antiguo) — no decodificable, considera migrar</p>`;
+        decoded = `<p style="color:#fbbf24;padding:8px;background:#0d1117;border-radius:8px;">⚠ Formato v1 (UUID) — considera migrar en la sección de Migración</p>`;
     }
-    decoded += '</div>';
 
-    // Validación en servidor (si hay token)
     if (token) {
         try {
             const res  = await fetch(`${APPS_SCRIPT_URL}?action=validateId&token=${encodeURIComponent(token)}&privateId=${encodeURIComponent(idInput)}`);
             const data = await res.json();
-            decoded += `<p style="margin-top:8px;font-weight:700;color:${data.valid?'#3fb950':'#f85149'}">
-                ${data.valid ? '✅ ID encontrado en PRIVADO' : '❌ ID NO encontrado en PRIVADO'}</p>`;
+            decoded += `<p style="font-weight:700;color:${data.valid?'#3fb950':'#f85149'};margin-top:4px;">${data.valid?'✅ Encontrado en PRIVADO':'❌ NO encontrado en PRIVADO'}</p>`;
         } catch(e) {}
     } else {
-        decoded += `<p style="margin-top:8px;color:#8b949e;font-size:11px;">(introduce el token para comprobar si existe en PRIVADO)</p>`;
+        decoded += `<p style="color:#8b949e;font-size:11px;margin-top:4px;">(introduce el token para verificar en PRIVADO)</p>`;
     }
-
     resultEl.innerHTML = decoded;
 });
+
+function editCompletarRandom(existing) {
+    const BASE36 = '0123456789abcdefghijklmnopqrstuvwxyz';
+    const arr    = new Uint8Array(32);
+    crypto.getRandomValues(arr);
+    const full   = (existing||'') + Array.from(arr, b => BASE36[b%36]).join('');
+    const inp    = document.getElementById('edit-rand');
+    if (inp) { inp.value = full.slice(0,32); editRebuildId(); }
+}
+
+function editRebuildId() {
+    const user = (document.getElementById('edit-user')?.value||'').toLowerCase().trim();
+    const name = (document.getElementById('edit-name')?.value||'').trim();
+    const rand = (document.getElementById('edit-rand')?.value||'').trim();
+    const oldId  = document.getElementById('edit-full-id')?.value || '';
+    const dateB36 = oldId.split('~')[2] || '';
+    let nameEnc = '';
+    try { nameEnc = btoa(unescape(encodeURIComponent(name))); } catch(e) { nameEnc = btoa(name); }
+    if (user && nameEnc && dateB36) {
+        const newId = `${user}~${nameEnc}~${dateB36}~${rand}`;
+        const el = document.getElementById('edit-full-id');
+        if (el) el.value = newId;
+        const pubEl = document.getElementById('edit-public-id');
+        if (pubEl && rand.length >= 4) pubEl.value = `${user}#${rand.slice(0,4)}`;
+    }
+}
+
+async function editEnviarReparacion() {
+    const token    = document.getElementById('admin-token').value.trim();
+    const newId    = document.getElementById('edit-full-id')?.value.trim();
+    const publicId = document.getElementById('edit-public-id')?.value.trim();
+    const mensaje  = document.getElementById('edit-msg')?.value.trim();
+    const btn      = document.getElementById('edit-send-btn');
+    const statusEl = document.getElementById('edit-send-status');
+    if (!token || !newId || !publicId) { toast('Rellena token, ID resultante e ID público', false); return; }
+    btn.disabled = true; btn.innerHTML = '⏳ Enviando…';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=sendRepairNotification&token=${encodeURIComponent(token)}&publicId=${encodeURIComponent(publicId)}&newPrivateId=${encodeURIComponent(newId)}&mensaje=${encodeURIComponent(mensaje||'')}`);
+        const data = await res.json();
+        if (data.ok) {
+            statusEl.innerHTML = '<span style="color:#3fb950">✅ Notificación enviada</span>';
+            btn.style.opacity = '0.5';
+        } else {
+            statusEl.innerHTML = `<span style="color:#f85149">❌ ${esc(data.error||'Error')}</span>`;
+            btn.disabled = false; btn.innerHTML = '📬 Guardar y notificar al usuario';
+        }
+    } catch(e) {
+        statusEl.innerHTML = '<span style="color:#f85149">❌ Error de conexión</span>';
+        btn.disabled = false; btn.innerHTML = '📬 Guardar y notificar al usuario';
+    }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // TAB: INCIDENCIAS
