@@ -786,7 +786,6 @@ function renderResponses() {
         const suspBadge = r.idSospechoso
             ? '<span class="badge" style="background:#450a0a;color:#fbbf24;border:1px solid #92400e;margin-left:4px;" title="ID no encontrado en PRIVADO">⚠ ID sospechoso</span>'
             : '';
-                : '<span class="badge badge-wrong">❌ Incorrecta</span>';
         const fecha = (() => { try { return new Date(r.fecha).toLocaleDateString('es', {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e) { return r.fecha || ''; } })();
 
         const ignoreBtn = (isPending && !isIgnored)
