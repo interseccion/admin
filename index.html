@@ -783,8 +783,12 @@ function renderResponses() {
             : isCorrect
                 ? '<span class="badge badge-correct">✅ Correcta</span>'
                 : '<span class="badge badge-wrong">❌ Incorrecta</span>';
-        const suspBadge = r.idSospechoso
-            ? '<span class="badge" style="background:#450a0a;color:#fbbf24;border:1px solid #92400e;margin-left:4px;" title="ID no encontrado en PRIVADO">⚠ ID sospechoso</span>'
+        const suspBadge = (r.idSospechoso || r.randCorto)
+            ? `<button onclick="abrirDecoderId('${esc(r.idPrivado||'')}')"
+                style="background:#450a0a;color:#fbbf24;border:1px solid #92400e;margin-left:4px;border-radius:4px;padding:1px 8px;font-size:11px;cursor:pointer;"
+                title="Clic para decodificar/reparar este ID">
+                ${r.idSospechoso ? '⚠ ID sospechoso' : ''}${r.randCorto ? (r.idSospechoso?' · ':'')+'🔑 rand corto' : ''}
+               </button>`
             : '';
         const fecha = (() => { try { return new Date(r.fecha).toLocaleDateString('es', {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e) { return r.fecha || ''; } })();
 
@@ -1933,6 +1937,26 @@ async function openUserProfileById(idPublico) {
 // ═══════════════════════════════════════════════════════════════════
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// Abre el tab Cuentas con el ID ya precargado y lanza el decodificador
+function abrirDecoderId(privateId) {
+    if (!privateId) { toast('No hay ID privado disponible', false); return; }
+    // Cambiar al tab Cuentas
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    const cuentasBtn = document.querySelector('[data-tab="cuentas"]');
+    if (cuentasBtn) cuentasBtn.classList.add('active');
+    ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias'].forEach(t => {
+        const el = document.getElementById('tab-' + t);
+        if (el) el.classList.toggle('hidden', t !== 'cuentas');
+    });
+    // Pre-rellenar el input y disparar el decoder
+    const input = document.getElementById('validate-id-input');
+    if (input) {
+        input.value = privateId;
+        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.getElementById('validate-id-btn')?.click();
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // TAB: CUENTAS — crear, migrar y validar IDs desde el panel de admin
 // ═══════════════════════════════════════════════════════════════════
@@ -2228,20 +2252,6 @@ async function loadIncidencias() {
         const res  = await fetch(`${APPS_SCRIPT_URL}?action=getFeedback&token=${encodeURIComponent(token)}&tipo=corrupto`);
         const data = await res.json();
         if (data.error) { toast('Error: ' + data.error, false); return; }
-        renderIncidencias(data.filter ? data.filter(f => f.tipo === 'corrupto' || f.tipo === 'bug') : data);
-    } catch(e) { toast('Error de conexión', false); }
-    btn.disabled = false; btn.textContent = '🔄 Cargar incidencias';
-}
-
-async function loadIncidencias() {
-    const token = document.getElementById('admin-token').value.trim();
-    if (!token) { toast('Introduce el token admin', false); return; }
-    const btn = document.getElementById('load-incidencias-btn');
-    btn.disabled = true; btn.textContent = '⏳ Cargando…';
-    try {
-        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getFeedback&token=${encodeURIComponent(token)}&tipo=corrupto`);
-        const data = await res.json();
-        if (data.error) { toast('Error: ' + data.error, false); return; }
         renderIncidencias(Array.isArray(data) ? data.filter(f => f.tipo === 'corrupto') : []);
     } catch(e) { toast('Error de conexión', false); }
     btn.disabled = false; btn.textContent = '🔄 Cargar incidencias';
@@ -2274,11 +2284,12 @@ function renderIncidencias(items) {
         return;
     }
     list.innerHTML = items.map((f, idx) => {
-        const rawId  = (f.texto || '').match(/[a-z0-9~._-]{20,}/)?.[0] || '';
+        // Extraer el ID del texto (soporta base64 con +/=)
+        const rawId = (f.texto || '').match(/[A-Za-z0-9~._=+/\\-]{20,}/)?.[0] || '';
         const parts  = rawId ? decodeIdParts(rawId) : null;
         const randLen = parts?.rand?.length || 0;
         const randOk  = randLen === 32;
-        const nameOk  = parts ? (parts.displayNameLen <= 20) : true;
+        const nameOk  = parts ? parts.displayNameLen <= 20 : true;
         const userOk  = parts ? (parts.user?.length >= 2 && parts.user?.length <= 30) : true;
         const allOk   = randOk && nameOk && userOk;
 
@@ -2287,146 +2298,41 @@ function renderIncidencias(items) {
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                     <span class="badge" style="background:rgba(248,81,73,.15);color:#f85149;border:1px solid rgba(248,81,73,.3);">corrupto</span>
                     <span style="font-size:11px;color:#8b949e;">${f.fecha ? new Date(f.fecha).toLocaleString('es') : '—'}</span>
-                    ${!allOk ? `<span style="font-size:10px;color:#fbbf24;font-weight:700">⚠ ID necesita reparación</span>` : `<span style="font-size:10px;color:#3fb950;">✓ ID estructuralmente correcto</span>`}
+                    ${rawId && !allOk ? `<span style="font-size:10px;color:#fbbf24;font-weight:700">⚠ ID necesita reparación</span>` : (rawId ? `<span style="font-size:10px;color:#3fb950;">✓ Formato correcto</span>` : '')}
                 </div>
                 <span style="font-size:11px;color:#79c0ff;font-family:monospace;">${esc(f.idPublico||'anon')}</span>
             </div>
             <p style="font-size:11px;color:#8b949e;word-break:break-all;margin-bottom:10px;">${esc(f.texto||'')}</p>
-
+            ${rawId ? `<button onclick="abrirDecoderId('${rawId.replace(/'/g,"\\'")}')"
+                style="background:none;border:1px solid #6c63ff;color:#a78bfa;font-size:10px;padding:3px 10px;border-radius:4px;cursor:pointer;margin-bottom:10px;">
+                🔍 Decodificar / Reparar ID en tab Cuentas</button>` : '<p style="font-size:11px;color:#8b949e;font-style:italic;">No se detectó un ID válido en el texto.</p>'}
             ${parts ? `
-            <!-- Desglose del ID -->
             <div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:12px;margin-bottom:12px;font-size:11px;">
                 <p style="color:#8b949e;margin-bottom:8px;font-size:10px;text-transform:uppercase;font-weight:700;">Análisis del ID</p>
                 <table style="width:100%;border-collapse:collapse;">
                     <tr style="border-bottom:1px solid #21262d;">
-                        <td style="padding:4px 8px;color:#8b949e;width:130px;">Usuario</td>
+                        <td style="padding:4px 8px;color:#8b949e;width:120px;">Usuario</td>
                         <td style="padding:4px 8px;font-family:monospace;color:${userOk?'#e6edf3':'#f85149'}">${esc(parts.user)}</td>
-                        <td style="padding:4px 8px;text-align:right;color:#79c0ff;">${parts.user?.length} chars ${userOk?'✓':'⚠ (esperado 2-30)'}</td>
+                        <td style="padding:4px 8px;text-align:right;color:#79c0ff">${parts.user?.length} ${userOk?'✓':'⚠'}</td>
                     </tr>
                     <tr style="border-bottom:1px solid #21262d;">
                         <td style="padding:4px 8px;color:#8b949e;">Nombre display</td>
                         <td style="padding:4px 8px;color:#e6edf3;">${esc(parts.displayName)}</td>
-                        <td style="padding:4px 8px;text-align:right;color:${nameOk?'#79c0ff':'#f85149'}">${parts.displayNameLen} chars ${nameOk?'✓':'⚠ (máx 20)'}</td>
+                        <td style="padding:4px 8px;text-align:right;color:${nameOk?'#79c0ff':'#f85149'}">${parts.displayNameLen} ${nameOk?'✓':'⚠'}</td>
                     </tr>
                     <tr style="border-bottom:1px solid #21262d;">
-                        <td style="padding:4px 8px;color:#8b949e;">Fecha creación</td>
+                        <td style="padding:4px 8px;color:#8b949e;">Fecha</td>
                         <td style="padding:4px 8px;color:#e6edf3;">${parts.dateStr}</td>
-                        <td style="padding:4px 8px;text-align:right;color:#79c0ff;">${parts.dateB36?.length} chars</td>
+                        <td style="padding:4px 8px;text-align:right;color:#79c0ff">${parts.dateB36?.length}</td>
                     </tr>
                     <tr>
-                        <td style="padding:4px 8px;color:#8b949e;">Parte aleatoria</td>
+                        <td style="padding:4px 8px;color:#8b949e;">Aleatoria</td>
                         <td style="padding:4px 8px;font-family:monospace;font-size:10px;color:${randOk?'#e6edf3':'#f85149'};word-break:break-all;">${esc(parts.rand||'(vacío)')}</td>
-                        <td style="padding:4px 8px;text-align:right;color:${randOk?'#79c0ff':'#f85149'}">${randLen} chars ${randOk?'✓':'⚠ (esperado 32)'}</td>
+                        <td style="padding:4px 8px;text-align:right;color:${randOk?'#79c0ff':'#f85149'}">${randLen} ${randOk?'✓':'⚠ (esp. 32)'}</td>
                     </tr>
                 </table>
-            </div>
-
-            <!-- Herramienta de reparación -->
-            <div style="background:#0a0c12;border:1px solid #21262d;border-radius:8px;padding:12px;margin-bottom:10px;">
-                <p style="color:#8b949e;font-size:10px;text-transform:uppercase;font-weight:700;margin-bottom:10px;">🔧 Reparar ID</p>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-                    <div>
-                        <label style="font-size:10px;color:#8b949e;">Usuario</label>
-                        <input id="repair-user-${idx}" value="${esc(parts.user||'')}" style="width:100%;font-size:11px;margin-top:2px;">
-                    </div>
-                    <div>
-                        <label style="font-size:10px;color:#8b949e;">Nombre display (máx 20 chars)</label>
-                        <input id="repair-name-${idx}" value="${esc(parts.displayName||'')}" maxlength="20" style="width:100%;font-size:11px;margin-top:2px;">
-                    </div>
-                </div>
-                <div style="margin-bottom:8px;">
-                    <label style="font-size:10px;color:#8b949e;">Parte aleatoria (32 chars base36)
-                        ${!randOk ? `<button onclick="completarRandom(${idx},'${esc(parts.rand||'')}')" style="margin-left:8px;background:rgba(108,99,255,.2);border:1px solid rgba(108,99,255,.4);color:#a78bfa;font-size:10px;padding:1px 8px;border-radius:4px;cursor:pointer;">🔐 Completar ${32-randLen} chars con cripto</button>` : ''}
-                    </label>
-                    <input id="repair-rand-${idx}" value="${esc(parts.rand||'')}" maxlength="32" style="width:100%;font-family:monospace;font-size:11px;margin-top:2px;" oninput="updateRepairedId(${idx})">
-                </div>
-                <div style="margin-bottom:10px;">
-                    <label style="font-size:10px;color:#8b949e;">ID reparado (editable)</label>
-                    <input id="repaired-id-${idx}" value="${esc(rawId)}" style="width:100%;font-family:monospace;font-size:10px;margin-top:2px;color:#79c0ff;" oninput="syncPartsFromId(${idx})">
-                </div>
-                <div>
-                    <label style="font-size:10px;color:#8b949e;display:block;margin-bottom:4px;">Mensaje para el usuario</label>
-                    <textarea id="repair-msg-${idx}" rows="2" style="width:100%;font-size:11px;background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:6px;color:#e6edf3;resize:vertical;">Tu ID ha sido corregido. Pulsa el botón para restaurar tu sesión.</textarea>
-                </div>
-                <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                    <button onclick="enviarReparacion(${idx},'${esc(f.idPublico||'')}')" style="background:#6c63ff;color:#fff;border:none;padding:7px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;" id="repair-send-btn-${idx}">
-                        📬 Enviar notificación de reparación
-                    </button>
-                    <span id="repair-status-${idx}" style="font-size:11px;"></span>
-                </div>
-            </div>` : `<p style="font-size:11px;color:#8b949e;font-style:italic;">No se detectó un ID válido en el texto de la incidencia.</p>`}
+            </div>` : ''}
         </div>`;
     }).join('');
 }
 
-function completarRandom(idx, existing) {
-    const BASE36 = '0123456789abcdefghijklmnopqrstuvwxyz';
-    const needed = 32 - existing.length;
-    if (needed <= 0) return;
-    const arr = new Uint8Array(needed);
-    crypto.getRandomValues(arr);
-    const extra = Array.from(arr, b => BASE36[b % 36]).join('');
-    const input = document.getElementById(`repair-rand-${idx}`);
-    if (input) { input.value = existing + extra; updateRepairedId(idx); }
-}
-
-function updateRepairedId(idx) {
-    const user = document.getElementById(`repair-user-${idx}`)?.value || '';
-    const name = document.getElementById(`repair-name-${idx}`)?.value || '';
-    const rand = document.getElementById(`repair-rand-${idx}`)?.value || '';
-    // Recodificar el nombre en base64
-    let nameEnc = '';
-    try { nameEnc = btoa(unescape(encodeURIComponent(name))); } catch(e) { nameEnc = btoa(name); }
-    // Mantener la fecha original
-    const oldId = document.getElementById(`repaired-id-${idx}`)?.value || '';
-    const parts = oldId.split('~');
-    const dateB36 = parts[2] || new Date().toISOString().slice(0,10).replace(/-/g,'');
-    const newId = `${user.toLowerCase()}~${nameEnc}~${dateB36}~${rand}`;
-    const el = document.getElementById(`repaired-id-${idx}`);
-    if (el) el.value = newId;
-}
-
-function syncPartsFromId(idx) {
-    const rawId = document.getElementById(`repaired-id-${idx}`)?.value || '';
-    if (!rawId.includes('~')) return;
-    const parts = decodeIdParts(rawId);
-    if (!parts) return;
-    const u = document.getElementById(`repair-user-${idx}`);
-    const n = document.getElementById(`repair-name-${idx}`);
-    const r = document.getElementById(`repair-rand-${idx}`);
-    if (u) u.value = parts.user || '';
-    if (n) n.value = parts.displayName || '';
-    if (r) r.value = parts.rand || '';
-}
-
-async function enviarReparacion(idx, publicId) {
-    const token      = document.getElementById('admin-token').value.trim();
-    const newId      = document.getElementById(`repaired-id-${idx}`)?.value.trim();
-    const mensaje    = document.getElementById(`repair-msg-${idx}`)?.value.trim();
-    const btn        = document.getElementById(`repair-send-btn-${idx}`);
-    const statusEl   = document.getElementById(`repair-status-${idx}`);
-
-    if (!token)   { toast('Introduce el token admin', false); return; }
-    if (!newId)   { toast('El ID reparado está vacío', false); return; }
-    if (!publicId){ toast('Sin ID público del usuario', false); return; }
-
-    btn.disabled = true; btn.innerHTML = '⏳ Enviando…';
-    try {
-        const res  = await fetch(`${APPS_SCRIPT_URL}?action=sendRepairNotification&token=${encodeURIComponent(token)}&publicId=${encodeURIComponent(publicId)}&newPrivateId=${encodeURIComponent(newId)}&mensaje=${encodeURIComponent(mensaje||'')}`);
-        const data = await res.json();
-        if (data.ok) {
-            statusEl.innerHTML = '<span style="color:#3fb950">✅ Notificación enviada</span>';
-            btn.style.opacity = '0.5';
-        } else {
-            statusEl.innerHTML = `<span style="color:#f85149">❌ ${esc(data.error||'Error')}</span>`;
-            btn.disabled = false; btn.innerHTML = '📬 Enviar notificación de reparación';
-        }
-    } catch(e) {
-        statusEl.innerHTML = '<span style="color:#f85149">❌ Error de conexión</span>';
-        btn.disabled = false; btn.innerHTML = '📬 Enviar notificación de reparación';
-    }
-}
-
-</script>
-</body>
-</html>
