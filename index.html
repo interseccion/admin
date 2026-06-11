@@ -804,7 +804,7 @@ function renderResponses() {
                     ${badgeHtml}${suspBadge}
                     <button class="text-sm font-bold text-white hover:text-indigo-300 underline-offset-2 hover:underline" onclick="event.stopPropagation();openUserProfile('${esc(r.idPublico||'')}')" title="Ver perfil">${esc(r.nombre || r.idPublico || '?')}</button>
                     <span style="font-size:11px;color:#8b949e;">${esc(r.idPublico || '')}</span>
-                    <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#79c0ff;">${mystTitle(r.misterio)}</span>
+                    <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#79c0ff;">${mystTitleHtml(r.misterio)}</span>
                 </div>
                 <div class="flex items-center gap-2">
                     ${ignoreBtn}
@@ -2335,4 +2335,3 @@ function renderIncidencias(items) {
         </div>`;
     }).join('');
 }
-
