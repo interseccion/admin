@@ -2460,7 +2460,7 @@ function renderIncidencias() {
     // ── Auto-detectados (hoja SOSPECHOSOS) ──
     if (showS && _allSospechosos.length) {
         html += `<div style="padding:8px 16px 6px;background:#0d1117;font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #21262d;letter-spacing:.05em;">⚠ Auto-detectados — hoja SOSPECHOSOS (${_allSospechosos.length})</div>`;
-        html += _allSospechosos.map(s => {
+        html += _allSospechosos.map((s, idx) => {
             const pp    = s.idPrivado ? decodeIdParts(s.idPrivado) : null;
             const rLen  = pp?.rand?.length || 0;
             const rOk   = rLen === 32;
