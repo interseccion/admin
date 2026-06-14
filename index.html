@@ -909,6 +909,19 @@ function openReview(row) {
             <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Opinión/Sugerencia</p>
             <p class="text-sm text-gray-300">${esc(r.opinion)}</p>
         </div>` : ''}
+        ${r.idSospechoso ? `
+        <div style="background:#1a0a00;border:1px solid #92400e;border-radius:8px;padding:12px;">
+            <p style="font-size:10px;color:#fbbf24;text-transform:uppercase;font-weight:700;margin-bottom:8px;">⚠ ID sospechoso — ${esc(r.motivoSosp||'motivo desconocido')}</p>
+            <p style="font-size:10px;font-family:monospace;color:#484f58;word-break:break-all;margin-bottom:10px;">${esc(r.idPrivado||'—')}</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-gray" style="font-size:11px;padding:4px 10px;"
+                    onclick="openValidateId('${(r.idPrivado||'').replace(/'/g,String.fromCharCode(39))}');closeReviewModal()">🔍 Validar / Reparar ID</button>
+                <button class="btn btn-gray" style="font-size:11px;padding:4px 10px;"
+                    onclick="openUserProfile('${esc(r.idPublico||'')}');closeReviewModal()">👤 Ver perfil</button>
+                <button class="btn btn-gray" style="font-size:11px;padding:4px 10px;"
+                    onclick="prefillSendNotif('${esc(r.idPublico||'')}');closeReviewModal()">✉️ Notificar</button>
+            </div>
+        </div>` : ''}
     `;
 
     // Mostrar botones según estado
@@ -2526,7 +2539,11 @@ function renderIncidencias() {
     if (showR && _allIncReportes.length) {
         html += `<div style="padding:8px 16px 6px;background:#0d1117;font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #21262d;letter-spacing:.05em;${showS&&_allSospechosos.length?'margin-top:16px;':''}">🐛 Reportes de usuarios (${_allIncReportes.length})</div>`;
         html += _allIncReportes.map((f, idx) => {
-            const rawId  = (f.texto||'').match(/[a-z0-9~._-]{20,}/)?.[0] || '';
+            // Buscar el ID privado en el texto: formato usuario~base64name~dateb36~rand
+            // La parte base64 usa mayúsculas y +/= por eso la regex original fallaba
+            const rawId  = (f.texto||'').match(/[a-z][a-z0-9._-]{1,29}~[A-Za-z0-9+\/=]+~[0-9a-z]{2,8}~[a-z0-9]{8,32}/)?.[0]
+                        || (f.texto||'').match(/[a-z0-9A-Z~+\/=._-]{30,}/)?.[0]
+                        || '';
             const parts  = rawId ? decodeIdParts(rawId) : null;
             const rLen   = parts?.rand?.length || 0;
             const rOk    = rLen === 32;
