@@ -2262,11 +2262,9 @@ document.getElementById('validate-id-btn')?.addEventListener('click', async () =
         let displayName = '(error)', displayNameLen = 0;
         try {
             const b64 = nameEnc.replace(/-/g,'+').replace(/_/g,'/');
-            const _pad_ = b64.length % 4;
-            const b64p  = _pad_ ? b64 + '='.repeat(4 - _pad_) : b64;
-            displayName = decodeURIComponent(escape(atob(b64p)));
+            displayName = decodeURIComponent(escape(atob(b64)));
             displayNameLen = displayName.length;
-        } catch(e) { try { displayName = atob(b64p||nameEnc); displayNameLen = displayName.length; } catch(e2){} }
+        } catch(e) { try { displayName = atob(nameEnc); displayNameLen = displayName.length; } catch(e2){} }
         let dateStr = '(error)';
         try {
             const n = parseInt(dateB36, 36);
@@ -2446,11 +2444,9 @@ function decodeIdParts(rawId) {
     let displayName = '(error)', displayNameLen = 0;
     try {
         const b64 = nameEnc.replace(/-/g,'+').replace(/_/g,'/');
-        const _pad_ = b64.length % 4;
-        const b64p  = _pad_ ? b64 + '='.repeat(4 - _pad_) : b64;
-        displayName = decodeURIComponent(escape(atob(b64p)));
+        displayName = decodeURIComponent(escape(atob(b64)));
         displayNameLen = displayName.length;
-    } catch(e) { try { displayName = atob(b64p||nameEnc); displayNameLen = displayName.length; } catch(e2){} }
+    } catch(e) { try { displayName = atob(nameEnc); displayNameLen = displayName.length; } catch(e2){} }
     let dateStr = '(error)';
     try {
         const n = parseInt(dateB36, 36);
