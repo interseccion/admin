@@ -492,7 +492,7 @@
         <h2 style="font-size:16px;font-weight:700;color:#e6edf3;margin-bottom:16px;">🆕 Crear nueva cuenta</h2>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:600px;">
             <div>
-                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Nombre de usuario (solo minúsculas, sin espacios)</label>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Nombre de usuario (solo minúsculas, con tildes permitidas, sin espacios)</label>
                 <input type="text" id="new-username" placeholder="ej: ana_garcia" style="width:100%;" autocomplete="off" spellcheck="false">
                 <p id="username-check-msg" style="font-size:11px;margin-top:4px;"></p>
             </div>
@@ -2120,8 +2120,8 @@ document.getElementById('new-username')?.addEventListener('input', () => {
     const val = document.getElementById('new-username').value.trim().toLowerCase();
     const msg = document.getElementById('username-check-msg');
     if (!val) { msg.textContent = ''; return; }
-    if (!/^[a-z0-9_.-]{2,30}$/.test(val)) {
-        msg.textContent = '⚠ Solo letras, números, guión y punto. Entre 2 y 30 caracteres.';
+    if (!/^[a-zà-öø-ÿ0-9_.-]{2,30}$/.test(val)) {
+        msg.textContent = '⚠ Solo minúsculas (con tildes), números y guion bajo. Sin espacios. Entre 2 y 30 caracteres.';
         msg.style.color = '#fbbf24'; return;
     }
     msg.textContent = '⏳ Comprobando…'; msg.style.color = '#8b949e';
