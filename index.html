@@ -959,8 +959,8 @@ async function sendReview(action) {
         const data = await res.json();
         if (data.error) { toast('Error: ' + data.error, false); }
         else {
-            if (data.participados && data.participados.ok === false) {
-                toast('⚠️ Guardado, pero NO se registró la participación en PARTICIPADOS: ' + data.participados.error, false);
+            if (data.participacion && data.participacion.ok === false) {
+                toast('⚠️ Marcada, pero PARTICIPADOS falló: ' + data.participacion.error, false);
             } else {
                 toast(action === 'markCorrect' ? '✅ Marcada como correcta y puntos asignados' : '❌ Marcada como incorrecta');
             }
