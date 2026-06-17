@@ -959,7 +959,11 @@ async function sendReview(action) {
         const data = await res.json();
         if (data.error) { toast('Error: ' + data.error, false); }
         else {
-            toast(action === 'markCorrect' ? '✅ Marcada como correcta y puntos asignados' : '❌ Marcada como incorrecta');
+            if (data.participados && data.participados.ok === false) {
+                toast('⚠️ Guardado, pero NO se registró la participación en PARTICIPADOS: ' + data.participados.error, false);
+            } else {
+                toast(action === 'markCorrect' ? '✅ Marcada como correcta y puntos asignados' : '❌ Marcada como incorrecta');
+            }
             // Actualizar localmente
             const idx = allResponses.findIndex(r => r.row === currentReviewRow);
             if (idx >= 0) {
