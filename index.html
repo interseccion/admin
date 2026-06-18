@@ -394,6 +394,16 @@
             <h3 style="font-size:13px;font-weight:700;color:#e6edf3;margin-bottom:12px;">🔥 Top rachas</h3>
             <div id="dashboard-streaks"></div>
         </div>
+        <div class="card p-4 mb-4">
+            <h3 style="font-size:13px;font-weight:700;color:#e6edf3;margin-bottom:12px;">👥 Top participantes (más misterios jugados)</h3>
+            <div id="dashboard-participantes"></div>
+        </div>
+        <div class="card overflow-hidden mb-4">
+            <div style="padding:12px 16px;background:#0d1117;border-bottom:1px solid #21262d;">
+                <h3 style="font-size:13px;font-weight:700;color:#e6edf3;">📊 Jugadores únicos por misterio</h3>
+            </div>
+            <div id="dashboard-part-by-mystery" style="padding:12px 16px;"></div>
+        </div>
     </div>
 
     <div id="dashboard-empty" style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">
@@ -1948,6 +1958,44 @@ function renderDashboard(d) {
         }
     }
 
+    // Top participantes
+    const partEl = document.getElementById('dashboard-participantes');
+    if (partEl) {
+        if (d.topParticipantes?.length) {
+            const medals = ['🥇','🥈','🥉'];
+            partEl.innerHTML = `<div style="display:grid;gap:6px;">${d.topParticipantes.map((u,i)=>`
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0d1117;border:1px solid #21262d;border-radius:8px;cursor:pointer;" onclick="openUserProfileById('${esc(u.idPublico)}')">
+                    <span style="font-size:14px;width:24px;text-align:center;">${medals[i] || (i+1)+'.'}</span>
+                    <span style="flex:1;font-size:13px;font-weight:700;color:#e6edf3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(u.nombre)}</span>
+                    <span style="font-size:13px;font-weight:700;color:#79c0ff;" title="Total participaciones">${u.total} 📋</span>
+                    <span style="font-size:12px;color:#8b949e;" title="Misterios distintos jugados">${u.mistPart} 🔍</span>
+                    ${u.racha > 1 ? `<span style="font-size:12px;color:#f0e68c;" title="Racha participaciones">${u.racha}🔥</span>` : ''}
+                </div>`).join('')}</div>`;
+        } else {
+            partEl.innerHTML = '<p style="color:#8b949e;font-size:12px;">Sin datos de participación todavía</p>';
+        }
+    }
+
+    // Jugadores únicos por misterio (barras horizontales)
+    const partMystEl = document.getElementById('dashboard-part-by-mystery');
+    if (partMystEl && d.partByMystery && Object.keys(d.partByMystery).length) {
+        const sorted = Object.entries(d.partByMystery).sort((a,b) => b[1]-a[1]);
+        const maxVal = sorted[0]?.[1] || 1;
+        partMystEl.innerHTML = `<div style="display:grid;gap:6px;">${sorted.map(([mid, count]) => {
+            const pct   = Math.round((count / maxVal) * 100);
+            const title = mystTitlePlain(mid) || mid;
+            return `<div style="display:grid;grid-template-columns:160px 1fr 36px;align-items:center;gap:8px;">
+                <span style="font-size:11px;color:#8b949e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(title)}">${esc(title)}</span>
+                <div style="background:#21262d;border-radius:4px;height:10px;overflow:hidden;">
+                    <div style="background:#79c0ff;height:100%;width:${pct}%;border-radius:4px;transition:width .3s;"></div>
+                </div>
+                <span style="font-size:12px;font-weight:700;color:#79c0ff;text-align:right;">${count}</span>
+            </div>`;
+        }).join('')}</div>`;
+    } else if (partMystEl) {
+        partMystEl.innerHTML = '<p style="color:#8b949e;font-size:12px;">Sin datos de participación todavía</p>';
+    }
+
     // Tabla por misterio
     const tbody = document.getElementById('dashboard-mystery-table');
     tbody.innerHTML = (d.porMisterio || []).map(m => {
@@ -2056,8 +2104,8 @@ function renderMysteryStats() {
 
     if (!stats.length) { list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin misterios</p>'; return; }
 
-    list.innerHTML = `<div style="display:grid;grid-template-columns:1fr 80px;gap:8px;padding:10px 16px;background:#0d1117;font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #21262d;">
-        <span>Misterio</span><span style="text-align:right;">Resuelto por</span>
+    list.innerHTML = `<div style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;padding:10px 16px;background:#0d1117;font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #21262d;">
+        <span>Misterio</span><span style="text-align:right;">Jugadores</span><span style="text-align:right;">Resuelto por</span>
     </div>` + stats.map(m => {
         const title = mystTitlePlain(m.id);
         const top3  = m.solvers.slice(0, 3);
@@ -2067,12 +2115,13 @@ function renderMysteryStats() {
         }).join('<span style="color:#30363d;"> · </span>');
         const extraSolvers = m.totalSolvers > 3 ? `<span style="font-size:10px;color:#8b949e;"> +${m.totalSolvers-3} más</span>` : '';
         return `<details style="border-bottom:1px solid #21262d;">
-            <summary style="display:grid;grid-template-columns:1fr 80px;gap:8px;padding:12px 16px;cursor:pointer;list-style:none;align-items:center;">
+            <summary style="display:grid;grid-template-columns:1fr 80px 80px;gap:8px;padding:12px 16px;cursor:pointer;list-style:none;align-items:center;">
                 <div>
                     <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(title)}</p>
                     <p style="font-size:10px;color:#484f58;font-family:monospace;">${esc(m.id)}</p>
                     ${m.totalSolvers ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">${topHTML}${extraSolvers}</div>` : ''}
                 </div>
+                <p style="font-size:14px;font-weight:700;color:${m.jugadores?'#79c0ff':'#8b949e'};text-align:right;" title="Jugadores únicos que han participado">${m.jugadores} 👥</p>
                 <p style="font-size:14px;font-weight:700;color:${m.totalSolvers?'#4ade80':'#8b949e'};text-align:right;">${m.totalSolvers} 🧩</p>
             </summary>
             ${m.solvers.length ? `<div style="padding:8px 16px 12px;background:#0d1117;">
