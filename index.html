@@ -597,7 +597,12 @@
 // CONFIGURACIÓN — cambia solo esta línea
 // ═══════════════════════════════════════════════════════════════════
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzsBNhS1srBCg44e2jKTIABl5NvXj_EUwKUbQy4ARivUcVxNj_XQR-loX6rZlS-aoI3yw/exec';
-const GAMES_INDEX_PATH = 'games/index.json';
+// Ruta ABSOLUTA (empieza por "/") porque admin.html vive en /admin/, un repo
+// distinto al de la web principal (interseccion.github.io/) donde está games/.
+// Una ruta relativa como 'games/index.json' se resolvía como /admin/games/index.json
+// (404) en vez de /games/index.json.
+const GAMES_INDEX_PATH = '/games/index.json';
+const GAMES_BASE_PATH  = GAMES_INDEX_PATH.replace(/index\.json$/, '');
 
 // Mapa id → título de misterio (cargado al inicio)
 let mysteryTitleMap = {};
@@ -609,7 +614,7 @@ async function loadMysteryTitles() {
         if (indexRes.ok) {
             const files = await indexRes.json();
             const results = await Promise.all(
-                files.map(f => fetch(`games/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
+                files.map(f => fetch(`${GAMES_BASE_PATH}${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
             );
             results.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
         }
