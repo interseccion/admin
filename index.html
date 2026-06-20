@@ -198,7 +198,7 @@
             <option value="">Todos los tipos</option>
             <option value="sugerencia">💡 Sugerencia</option>
             <option value="bug">🐛 Bug / Error</option>
-            <option value="elogio">❤️ Me gusta</option>
+            <option value="elogio">❤️ Opinión</option>
             <option value="otro">💬 Otro</option>
         </select>
         <button class="btn btn-blue" id="load-feedback-btn">🔄 Cargar</button>
@@ -1260,7 +1260,7 @@ function prefillSendNotif(userId, titulo, mensaje) {
 // ═══════════════════════════════════════════════════════════════════
 // FEEDBACK
 // ═══════════════════════════════════════════════════════════════════
-const TIPO_LABELS = { sugerencia:'💡 Sugerencia', bug:'🐛 Bug / Error', elogio:'❤️ Me gusta', otro:'💬 Otro', general:'💬 General' };
+const TIPO_LABELS = { sugerencia:'💡 Sugerencia', bug:'🐛 Bug / Error', elogio:'❤️ Opinión', otro:'💬 Otro', general:'💬 General' };
 const STAR_COLORS = ['','#ef4444','#f97316','#eab308','#84cc16','#22c55e'];
 
 document.getElementById('load-feedback-btn').addEventListener('click', async () => {
