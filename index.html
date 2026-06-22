@@ -2028,48 +2028,42 @@ function renderDashboard(d) {
         partMystEl.innerHTML = '<p style="color:#8b949e;font-size:12px;">Sin datos de participación todavía</p>';
     }
 
-    // Dificultad percibida media (total y por misterio)
-    // d.diffDistrib = {facil:N, medio:N, dificil:N} (distribución global)
-    // d.porMisterio ya tiene cada misterio, pero no la dificultad percibida desglosada.
-    // Para eso necesitamos que el GAS mande diffPercibidaMedia en cada porMisterio.
-    // Si lo manda, lo mostramos; si no, mostramos solo el total.
+    // Dificultad percibida media (1–5, siendo 5 muy difícil)
     const diffPercEl = document.getElementById('dashboard-diff-percibida');
     const diffGlobalEl = document.getElementById('diff-percibida-global');
     if (diffPercEl) {
-        const DIFF_LABELS = { facil: '😇 Fácil', medio: '🧐 Medio', dificil: '😈 Difícil' };
-        const DIFF_COLORS = { facil: '#3fb950', medio: '#f0e68c', dificil: '#f85149' };
-        // Media global: si hay datos en diffDistrib, calcula media ponderada
-        if (d.diffDistrib) {
-            const tot = (d.diffDistrib.facil||0) + (d.diffDistrib.medio||0) + (d.diffDistrib.dificil||0);
-            const score = tot > 0
-                ? Math.round(((d.diffDistrib.medio||0) + (d.diffDistrib.dificil||0)*2) / tot * 10) / 10
-                : null;
-            if (diffGlobalEl) diffGlobalEl.textContent = tot > 0
-                ? `Global: ${d.diffDistrib.facil||0}×😇 · ${d.diffDistrib.medio||0}×🧐 · ${d.diffDistrib.dificil||0}×😈  (${tot} votos)`
-                : '';
+        // Media global a partir de diffDistrib (que el GAS ya manda como {1:N,2:N,...,5:N})
+        if (d.diffDistrib && d.diffTotal > 0) {
+            const suma = [1,2,3,4,5].reduce((acc,v) => acc + v*(d.diffDistrib[v]||0), 0);
+            const media = Math.round(suma / d.diffTotal * 10) / 10;
+            if (diffGlobalEl) diffGlobalEl.textContent = `Media global: ${media}/5  (${d.diffTotal} votos)`;
         }
-        // Por misterio
+
+        // Por misterio: d.porMisterio[].diffPercibida = {1:N,2:N,3:N,4:N,5:N} o null
         const porMist = (d.porMisterio || []).filter(m => m.diffPercibida);
         if (porMist.length) {
-            diffPercEl.innerHTML = `<div style="display:grid;gap:6px;">${porMist.map(m => {
-                const dp = m.diffPercibida; // {facil, medio, dificil, media}
-                const tot = (dp.facil||0) + (dp.medio||0) + (dp.dificil||0);
-                if (!tot) return '';
-                const pctFacil   = Math.round((dp.facil||0)/tot*100);
-                const pctMedio   = Math.round((dp.medio||0)/tot*100);
-                const pctDificil = 100 - pctFacil - pctMedio;
-                return `<div style="display:grid;grid-template-columns:150px 1fr 60px;align-items:center;gap:8px;">
+            // Ordenar de más difícil a más fácil según la media
+            const withMedia = porMist.map(m => {
+                const dp = m.diffPercibida;
+                const tot = [1,2,3,4,5].reduce((a,v) => a+(dp[v]||0), 0);
+                const media = tot > 0 ? Math.round([1,2,3,4,5].reduce((a,v) => a+v*(dp[v]||0), 0) / tot * 10) / 10 : null;
+                return { ...m, _tot: tot, _media: media };
+            }).filter(m => m._media !== null).sort((a,b) => b._media - a._media);
+
+            diffPercEl.innerHTML = `<div style="display:grid;gap:8px;">${withMedia.map(m => {
+                const pct = Math.round((m._media - 1) / 4 * 100); // mapea 1–5 a 0–100%
+                const color = m._media <= 2 ? '#3fb950' : m._media <= 3.5 ? '#f0e68c' : '#f85149';
+                return `<div style="display:grid;grid-template-columns:150px 1fr 60px 40px;align-items:center;gap:8px;">
                     <span style="font-size:11px;color:#8b949e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(mystTitlePlain(m.id))}">${esc(mystTitlePlain(m.id)||m.id)}</span>
-                    <div style="background:#21262d;border-radius:4px;height:10px;overflow:hidden;display:flex;">
-                        <div style="background:#3fb950;height:100%;width:${pctFacil}%;"></div>
-                        <div style="background:#f0e68c;height:100%;width:${pctMedio}%;"></div>
-                        <div style="background:#f85149;height:100%;width:${pctDificil}%;"></div>
+                    <div style="background:#21262d;border-radius:4px;height:8px;overflow:hidden;">
+                        <div style="background:${color};height:100%;width:${pct}%;border-radius:4px;transition:width .3s;"></div>
                     </div>
-                    <span style="font-size:10px;color:#8b949e;text-align:right;">${dp.facil||0}·${dp.medio||0}·${dp.dificil||0}</span>
+                    <span style="font-size:13px;font-weight:700;color:${color};text-align:center;">${m._media}/5</span>
+                    <span style="font-size:10px;color:#4b5563;text-align:right;">${m._tot}v</span>
                 </div>`;
-            }).filter(Boolean).join('')}</div>`;
+            }).join('')}</div>`;
         } else {
-            diffPercEl.innerHTML = '<p style="color:#8b949e;font-size:12px;">Los datos de dificultad percibida por misterio se mostrarán cuando el GAS los incluya en porMisterio[].diffPercibida.</p>';
+            diffPercEl.innerHTML = '<p style="color:#8b949e;font-size:12px;">Todavía no hay votos de dificultad percibida.</p>';
         }
     }
 
