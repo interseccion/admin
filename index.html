@@ -1948,9 +1948,20 @@ function renderDashboard(d) {
         const diffEl = document.getElementById('dashboard-diff-chart');
         if (diffEl) {
             const total  = d.diffTotal || 1;
+            // Media ponderada del 1 al 5
+            const sumaW  = Object.entries(d.diffDistrib).reduce((acc,[k,v]) => acc + parseInt(k)*v, 0);
+            const mediaG = d.diffTotal > 0 ? Math.round(sumaW / d.diffTotal * 10) / 10 : null;
             const colors = {1:'#3fb950',2:'#79c0ff',3:'#f0e68c',4:'#ffa657',5:'#f85149'};
             const labels = {1:'⭐ Muy fácil',2:'⭐⭐ Fácil',3:'⭐⭐⭐ Media',4:'⭐⭐⭐⭐ Difícil',5:'⭐⭐⭐⭐⭐ Muy difícil'};
-            diffEl.innerHTML = Object.entries(d.diffDistrib).map(([k,v]) => {
+            const mediaColor = mediaG <= 2 ? '#3fb950' : mediaG <= 3.5 ? '#f0e68c' : '#f85149';
+            const mediaHTML = mediaG !== null
+                ? `<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:12px;">
+                       <span style="font-size:28px;font-weight:900;color:${mediaColor};">${mediaG}</span>
+                       <span style="font-size:14px;color:#8b949e;">/5</span>
+                       <span style="font-size:11px;color:#4b5563;margin-left:4px;">(${d.diffTotal} voto${d.diffTotal!==1?'s':''})</span>
+                   </div>`
+                : '';
+            diffEl.innerHTML = mediaHTML + Object.entries(d.diffDistrib).map(([k,v]) => {
                 const pct = Math.round((v/total)*100);
                 return `<div style="margin-bottom:7px;"><div style="display:flex;justify-content:space-between;font-size:10px;color:#8b949e;margin-bottom:2px;"><span>${labels[k]||k}</span><span>${v} (${pct}%)</span></div><div style="height:6px;background:#21262d;border-radius:3px;"><div style="height:6px;width:${pct}%;background:${colors[k]||'#79c0ff'};border-radius:3px;transition:width .3s;"></div></div></div>`;
             }).join('');
