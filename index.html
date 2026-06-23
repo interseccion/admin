@@ -688,7 +688,7 @@ async function loadMysteryTitles() {
     // Re-renderizar respuestas si ya están cargadas (para que aparezcan los nombres)
     if (allResponses.length) {
         populateMisterioFilter();
-        renderResponses();
+        responsesPage = 1; renderResponses();
     }
 }
 
@@ -756,7 +756,7 @@ async function loadResponses() {
         // Filtrar por pendientes por defecto
         document.getElementById('filter-estado').value = 'pending';
         populateMisterioFilter();
-        renderResponses();
+        responsesPage = 1; renderResponses();
         updateUserAutocomplete();
         toast('✅ ' + data.length + ' respuestas cargadas');
     } catch(e) { toast('Error de conexión: ' + e.message, false); }
@@ -773,14 +773,14 @@ function ignoreRow(row) {
     const ignored = getIgnoredRows();
     ignored.add(row);
     localStorage.setItem('ignoredRows', JSON.stringify([...ignored]));
-    renderResponses();
+        responsesPage = 1; renderResponses();
     toast('🙈 Respuesta ignorada (sin notificar al usuario)');
 }
 function unignoreRow(row) {
     const ignored = getIgnoredRows();
     ignored.delete(row);
     localStorage.setItem('ignoredRows', JSON.stringify([...ignored]));
-    renderResponses();
+        responsesPage = 1; renderResponses();
     toast('↩️ Respuesta restaurada a pendientes');
 }
 
@@ -799,7 +799,7 @@ document.getElementById('clear-filters-btn')?.addEventListener('click', () => {
     document.getElementById('filter-misterio').value = '';
     document.getElementById('filter-estado').value = '';
     document.getElementById('filter-user').value = '';
-    renderResponses();
+        responsesPage = 1; renderResponses();
 });
 
 function populateMisterioFilter() {
@@ -822,7 +822,7 @@ let sortDescending = true; // más nuevas primero por defecto
 document.getElementById('sort-dir-btn').addEventListener('click', () => {
     sortDescending = !sortDescending;
     document.getElementById('sort-dir-btn').textContent = sortDescending ? '↓ Más nuevas' : '↑ Más antiguas';
-    renderResponses();
+        responsesPage = 1; renderResponses();
 });
 
 ['filter-misterio','filter-estado','filter-user'].forEach(id => {
@@ -858,6 +858,9 @@ function getFilteredResponses() {
     return filtered;
 }
 
+let responsesPage = 1;
+const ADMIN_PAGE_SIZE = 30;
+
 function renderResponses() {
     const list = document.getElementById('responses-list');
     const data = getFilteredResponses();
@@ -868,7 +871,9 @@ function renderResponses() {
         return;
     }
 
-    list.innerHTML = data.map(r => {
+    const visible = data.slice(0, responsesPage * ADMIN_PAGE_SIZE);
+
+    list.innerHTML = visible.map(r => {
         const isPending = r.correcto === null || r.correcto === undefined;
         const isCorrect = r.correcto === true;
         const isIgnored = getIgnoredRows().has(r.row);
@@ -908,6 +913,15 @@ function renderResponses() {
             ${r.comentario ? `<p style="font-size:11px;color:#8b949e;margin-top:4px;">💬 ${esc(r.comentario)}</p>` : ''}
         </div>`;
     }).join('');
+
+    if (visible.length < data.length) {
+        const remaining = data.length - visible.length;
+        list.innerHTML += `<div style="text-align:center;padding:16px;">
+            <button class="btn btn-gray" onclick="responsesPage++;renderResponses();">
+                Ver ${Math.min(remaining, ADMIN_PAGE_SIZE)} más (${remaining} restantes)
+            </button>
+        </div>`;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1018,7 +1032,7 @@ async function sendReview(action) {
                 allResponses[idx].comentario = decodeURIComponent(comment);
             }
             closeReviewModal();
-            renderResponses();
+        responsesPage = 1; renderResponses();
         }
     } catch(e) { toast('Error de conexión', false); }
 
@@ -1064,7 +1078,7 @@ document.getElementById('review-save-comment-btn').addEventListener('click', asy
             const idx = allResponses.findIndex(r => r.row === currentReviewRow);
             if (idx >= 0) allResponses[idx].comentario = comment;
             closeReviewModal();
-            renderResponses();
+        responsesPage = 1; renderResponses();
         }
     } catch(e) { toast('Error de conexión', false); }
     btn.disabled = false; btn.textContent = '💾 Guardar comentario';
@@ -1162,12 +1176,14 @@ async function loadNotifsSent() {
         const data = await res.json();
         if (data.error) { toast('Error: ' + data.error, false); return; }
         allNotifsSent = data;
-        renderNotifsSent();
+        notifsSentPage = 1; renderNotifsSent();
         toast('📤 ' + data.length + ' notificaciones cargadas');
     } catch(e) { toast('Error de conexión', false); }
 }
 
 const NOTIF_ICONS = { respuesta:'📬', anuncio:'📢', nuevo_misterio:'🔍', general:'🔔' };
+
+let notifsSentPage = 1;
 
 function renderNotifsSent() {
     const list = document.getElementById('notifs-sent-list');
@@ -1178,15 +1194,15 @@ function renderNotifsSent() {
         return;
     }
 
-    list.innerHTML = allNotifsSent.map(n => {
+    const visible = allNotifsSent.slice(0, notifsSentPage * ADMIN_PAGE_SIZE);
+
+    list.innerHTML = visible.map(n => {
         const icon  = NOTIF_ICONS[n.tipo] || '🔔';
         const fecha = (() => { try { return new Date(n.fecha).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch(e){ return ''; }})();
         const destColor = n.user === 'TODOS' ? '#f59e0b' : '#79c0ff';
-        // Resolver #mystery=ID en título y mensaje
         const mystId = n.link?.match(/^#mystery=(.+)$/)?.[1];
         const titulo  = mystId ? esc(n.titulo  || '').replace(esc(mystId), esc(mystTitlePlain(mystId))) : esc(n.titulo  || '');
         const mensaje = mystId ? esc(n.mensaje || '').replace(esc(mystId), esc(mystTitlePlain(mystId))) : esc(n.mensaje || '');
-        // Mostrar enlace: si es interno muestra el nombre del misterio; si es externo muestra la URL
         const linkHTML = (() => {
             if (!n.link) return '';
             if (mystId) return `<span style="font-size:11px;color:#a78bfa;">🔍 ${esc(mystTitlePlain(mystId))} <span style="color:#484f58;">(${esc(mystId)})</span></span>`;
@@ -1209,6 +1225,15 @@ function renderNotifsSent() {
             </div>
         </div>`;
     }).join('');
+
+    if (visible.length < allNotifsSent.length) {
+        const remaining = allNotifsSent.length - visible.length;
+        list.innerHTML += `<div style="text-align:center;padding:16px;">
+            <button class="btn btn-gray" onclick="notifsSentPage++;renderNotifsSent();">
+                Ver ${Math.min(remaining, ADMIN_PAGE_SIZE)} más (${remaining} restantes)
+            </button>
+        </div>`;
+    }
 }
 
 ['notif-sent-filter-tipo'].forEach(id => {
@@ -1419,7 +1444,7 @@ let allUsers = [];
 let _currentUserProfile = null;
 
 document.getElementById('load-users-btn').addEventListener('click', loadUsers);
-document.getElementById('users-search').addEventListener('input', renderUsersList);
+document.getElementById('users-search').addEventListener('input', () => { usersPage = 1; renderUsersList(); });
 
 async function loadUsers() {
     const token = document.getElementById('admin-token').value.trim();
@@ -1431,11 +1456,13 @@ async function loadUsers() {
         const data = await res.json();
         if (data.error) { toast('Error: ' + data.error, false); return; }
         allUsers = data;
-        renderUsersList();
+        usersPage = 1; renderUsersList();
         updateUserAutocomplete();
         toast('👥 ' + data.length + ' usuarios cargados');
     } catch(e) { toast('Error de conexión', false); }
 }
+
+let usersPage = 1;
 
 function renderUsersList() {
     const list   = document.getElementById('users-list');
@@ -1451,12 +1478,13 @@ function renderUsersList() {
         return;
     }
 
-    // Cabecera tabla
     const header = `<div style="display:grid;grid-template-columns:28px 1fr 90px 80px 80px;gap:8px;padding:10px 16px;background:#0d1117;font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;border-bottom:1px solid #21262d;">
         <span>#</span><span>Usuario</span><span style="text-align:right;">Puntos</span><span style="text-align:right;">Misterios</span><span></span>
     </div>`;
 
-    list.innerHTML = header + users.map((u, i) => {
+    const visible = users.slice(0, usersPage * ADMIN_PAGE_SIZE);
+
+    list.innerHTML = header + visible.map((u, i) => {
         const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
         return `<div class="row-item clickable-row" style="display:grid;grid-template-columns:28px 1fr 90px 80px 80px;gap:8px;padding:10px 16px;align-items:center;" onclick='openUserProfile(${JSON.stringify(u).replace(/'/g,"&#39;")})'>
             <span style="font-size:12px;color:#484f58;">${medal || (i+1)}</span>
@@ -1469,6 +1497,15 @@ function renderUsersList() {
             <div style="text-align:right;"><button class="btn btn-gray" style="padding:4px 10px;font-size:11px;" onclick="event.stopPropagation();prefillSendNotif('${esc(u.idPublico)}')">✉️</button></div>
         </div>`;
     }).join('');
+
+    if (visible.length < users.length) {
+        const remaining = users.length - visible.length;
+        list.innerHTML += `<div style="text-align:center;padding:16px;">
+            <button class="btn btn-gray" onclick="usersPage++;renderUsersList();">
+                Ver ${Math.min(remaining, ADMIN_PAGE_SIZE)} más (${remaining} restantes)
+            </button>
+        </div>`;
+    }
 }
 
 // ─── PERFIL DE USUARIO ───────────────────────────────────────────────────────
