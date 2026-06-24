@@ -644,6 +644,21 @@
 // CONFIGURACIÓN — cambia solo esta línea
 // ═══════════════════════════════════════════════════════════════════
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzsBNhS1srBCg44e2jKTIABl5NvXj_EUwKUbQy4ARivUcVxNj_XQR-loX6rZlS-aoI3yw/exec';
+
+/**
+ * Envía una mutación de admin al GAS vía POST.
+ * Usa Content-Type: text/plain para evitar el preflight CORS
+ * (las peticiones "simples" no lo necesitan), manteniendo JSON en el body.
+ */
+async function adminPost(body) {
+    const token = document.getElementById('admin-token').value.trim();
+    const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ ...body, token })
+    });
+    return res.json();
+}
 const GAMES_INDEX_PATH = 'games/index.json';
 
 // Mapa id → título de misterio (cargado al inicio)
@@ -1016,8 +1031,7 @@ async function sendReview(action) {
     btn.textContent = '⏳...';
 
     try {
-        const res  = await fetch(`${APPS_SCRIPT_URL}?action=${action}&token=${encodeURIComponent(token)}&row=${currentReviewRow}&comment=${comment}`);
-        const data = await res.json();
+        const data = await adminPost({ action, row: currentReviewRow, comment: document.getElementById('review-comment').value.trim() });
         if (data.error) { toast('Error: ' + data.error, false); }
         else {
             if (data.participacion && data.participacion.ok === false) {
@@ -1054,24 +1068,21 @@ document.getElementById('review-save-comment-btn').addEventListener('click', asy
     const btn = document.getElementById('review-save-comment-btn');
     btn.disabled = true; btn.textContent = '⏳...';
     try {
-        const res  = await fetch(`${APPS_SCRIPT_URL}?action=saveComment&token=${encodeURIComponent(token)}&row=${currentReviewRow}&comment=${encodeURIComponent(comment)}`);
-        const data = await res.json();
+        const data = await adminPost({ action: 'saveComment', row: currentReviewRow, comment });
         if (data.error) { toast('Error: ' + data.error, false); }
         else {
-            // Si el checkbox está marcado, enviar notificación al usuario
             if (sendNotif && comment) {
                 const r = allResponses.find(x => x.row === currentReviewRow);
                 if (r?.idPublico) {
                     const mystName = mystTitlePlain(r.misterio);
-                    const params = new URLSearchParams({
-                        action: 'sendNotif', token,
-                        user   : r.idPublico,
-                        titulo : `💬 Comentario en «${mystName}»`,
-                        msg    : comment,
-                        tipo   : 'respuesta',
-                        link   : `#mystery=${r.misterio}`
-                    });
-                    await fetch(`${APPS_SCRIPT_URL}?${params}`).catch(() => {});
+                    await adminPost({
+                        action: 'sendNotif',
+                        user  : r.idPublico,
+                        titulo: `💬 Comentario en «${mystName}»`,
+                        msg   : comment,
+                        tipo  : 'respuesta',
+                        link  : `#mystery=${r.misterio}`
+                    }).catch(() => {});
                 }
             }
             toast(sendNotif && comment ? '💾 Comentario guardado y usuario notificado 📣' : '💾 Comentario guardado');
@@ -1423,9 +1434,7 @@ function openFeedbackDetail(r) {
                 const sendBtn = document.getElementById('fb-reply-send-btn');
                 sendBtn.disabled = true; sendBtn.textContent = '⏳...';
                 try {
-                    const params = new URLSearchParams({ action:'sendNotif', token, user: r.user, titulo, msg, tipo:'general', link:'' });
-                    const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
-                    const data = await res.json();
+                    const data = await adminPost({ action: 'sendNotif', user: r.user, titulo, msg, tipo: 'general', link: '' });
                     if (data.error) { toast('Error: ' + data.error, false); }
                     else { toast('📣 Respuesta enviada a ' + r.user); form.remove(); }
                 } catch(e) { toast('Error de conexión', false); }
@@ -1711,9 +1720,7 @@ async function applyPointAdjust(idPublico) {
     const btn = document.getElementById('adj-submit-btn');
     btn.disabled = true; btn.textContent = '⏳...';
     try {
-        const params = new URLSearchParams({ action:'adjustPoints', token, idPublico, mysteryId: concept, delta });
-        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
-        const data = await res.json();
+        const data = await adminPost({ action: 'adjustPoints', idPublico, mysteryId: concept, delta });
         if (data.error) { toast('Error: ' + data.error, false); }
         else {
             const result = document.getElementById('adj-result');
@@ -1836,9 +1843,7 @@ async function saveGroup() {
     const id      = document.getElementById('group-edit-id').value.trim();
     if (!nombre) { toast('Pon un nombre al grupo', false); return; }
     try {
-        const params = new URLSearchParams({ action:'saveGroup', token, nombre, members, id });
-        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
-        const data = await res.json();
+        const data = await adminPost({ action: 'saveGroup', nombre, members, id });
         if (data.error) { toast('Error: ' + data.error, false); return; }
         toast('💾 Grupo guardado');
         document.getElementById('group-editor').classList.add('hidden');
@@ -1850,8 +1855,7 @@ async function deleteGroup(id) {
     if (!confirm('¿Eliminar este grupo?')) return;
     const token = document.getElementById('admin-token').value.trim();
     try {
-        const res  = await fetch(`${APPS_SCRIPT_URL}?action=deleteGroup&token=${encodeURIComponent(token)}&id=${encodeURIComponent(id)}`);
-        const data = await res.json();
+        const data = await adminPost({ action: 'deleteGroup', id });
         if (data.error) { toast('Error: ' + data.error, false); return; }
         toast('🗑️ Grupo eliminado');
         await loadGroups();
@@ -1874,20 +1878,14 @@ document.getElementById('send-notif-btn').addEventListener('click', async () => 
     btn.disabled = true; btn.textContent = '⏳ Enviando...';
 
     try {
-        let action, params;
+        let body;
         if (user.startsWith('__group__')) {
             const groupId = user.replace('__group__', '');
-            action = 'sendNotifToGroup';
-            params = new URLSearchParams({ action, token, groupId, titulo, msg, tipo, link });
+            body = { action: 'sendNotifToGroup', groupId, titulo, msg, tipo, link };
         } else {
-            action = 'sendNotif';
-            params = new URLSearchParams({ action, token,
-                user  : user || 'TODOS',
-                titulo, msg, tipo, link
-            });
+            body = { action: 'sendNotif', user: user || 'TODOS', titulo, msg, tipo, link };
         }
-        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
-        const data = await res.json();
+        const data = await adminPost(body);
         if (data.error) { toast('Error: ' + data.error, false); }
         else {
             const sentMsg = data.sent ? ` (enviada a ${data.sent} miembros)` : '';
@@ -2513,8 +2511,7 @@ document.getElementById('validate-id-btn')?.addEventListener('click', async () =
 
     if (token) {
         try {
-            const res  = await fetch(`${APPS_SCRIPT_URL}?action=validateId&token=${encodeURIComponent(token)}&privateId=${encodeURIComponent(idInput)}`);
-            const data = await res.json();
+            const data = await adminPost({ action: 'validateId', privateId: idInput });
             decoded += `<p style="font-weight:700;color:${data.valid?'#3fb950':'#f85149'};margin-top:4px;">${data.valid?'✅ Encontrado en PRIVADO':'❌ NO encontrado en PRIVADO'}</p>`;
         } catch(e) {}
     } else {
@@ -2560,9 +2557,7 @@ async function editEnviarReparacion() {
     if (!token || !newId || !publicId) { toast('Rellena token, ID resultante e ID público', false); return; }
     btn.disabled = true; btn.innerHTML = '⏳ Enviando…';
     try {
-        const params = new URLSearchParams({ action:'sendRepairNotification', token, publicId, newPrivateId:newId, mensaje:mensaje||'', oldPrivateId });
-        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
-        const data = await res.json();
+        const data = await adminPost({ action: 'sendRepairNotification', publicId, newPrivateId: newId, mensaje: mensaje||'', oldPrivateId });
         if (data.ok) {
             statusEl.innerHTML = '<span style="color:#3fb950">✅ Notificación enviada</span>';
             btn.style.opacity = '0.5';
@@ -2849,9 +2844,7 @@ async function enviarReparacion(idx, publicId, oldId) {
 
     btn.disabled = true; btn.innerHTML = '⏳ Enviando…';
     try {
-        const params = new URLSearchParams({ action:'sendRepairNotification', token, publicId, newPrivateId:newId, mensaje:mensaje||'', oldPrivateId:oldId||'' });
-        const res  = await fetch(`${APPS_SCRIPT_URL}?${params}`);
-        const data = await res.json();
+        const data = await adminPost({ action: 'sendRepairNotification', publicId, newPrivateId: newId, mensaje: mensaje||'', oldPrivateId: oldId||'' });
         if (data.ok) {
             statusEl.innerHTML = '<span style="color:#3fb950">✅ Notificación enviada</span>';
             btn.style.opacity = '0.5';
