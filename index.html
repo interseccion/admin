@@ -92,6 +92,8 @@
     <button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
     <button class="tab-btn" data-tab="cuentas">🔑 Cuentas</button>
     <button class="tab-btn" data-tab="incidencias">🔴 Incidencias</button>
+    <button class="tab-btn" data-tab="tarde-respuestas" style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Respuestas</button>
+    <button class="tab-btn" data-tab="tarde-equipos"    style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Equipos</button>
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
@@ -735,7 +737,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias'].forEach(t => {
+        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias','tarde-respuestas','tarde-equipos'].forEach(t => {
             const el = document.getElementById('tab-' + t);
             if (el) el.classList.toggle('hidden', t !== btn.dataset.tab);
         });
@@ -3034,5 +3036,363 @@ function updateNotifPreview() {
 })();
 
 </script>
+<!-- ─────────────────────────────────────────────────────────────── -->
+<!-- TAB: TARDE — RESPUESTAS                                         -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<div id="tab-tarde-respuestas" class="hidden">
+    <h2 style="font-size:17px;font-weight:700;color:#fbbf24;margin-bottom:16px;">🌆 Respuestas de Misterios de Tarde</h2>
+
+    <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;align-items:center">
+        <button id="load-tarde-resp-btn" class="btn-primary" style="background:#d97706">⏳ Cargar respuestas</button>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#8b949e">
+            <input type="checkbox" id="tarde-resp-pending-only" checked>
+            Solo pendientes
+        </label>
+    </div>
+
+    <div id="tarde-responses-list">
+        <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar respuestas" para empezar.</p>
+    </div>
+
+    <!-- Review modal -->
+    <div id="tarde-review-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:50;align-items:center;justify-content:center;padding:1rem">
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:12px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;padding:24px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                <h3 style="font-size:15px;font-weight:700;color:#e6edf3">Revisar respuesta</h3>
+                <button onclick="closeTardeReview()" style="background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer">✕</button>
+            </div>
+            <div id="tarde-review-body" style="font-size:13px;color:#c9d1d9;space-y:12px"></div>
+            <div style="margin-top:18px">
+                <label style="font-size:12px;color:#8b949e;display:block;margin-bottom:6px">Comentario (opcional)</label>
+                <textarea id="tarde-review-comment" rows="2" placeholder="Comentario para el equipo…"
+                    style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px;color:#e6edf3;font-size:13px;resize:vertical"></textarea>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:14px">
+                <button id="tarde-mark-correct-btn"   class="btn-primary" style="flex:1;background:#238636">✅ Correcta</button>
+                <button id="tarde-mark-incorrect-btn" class="btn-primary" style="flex:1;background:#da3633">❌ Incorrecta</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<!-- TAB: TARDE — EQUIPOS                                            -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<div id="tab-tarde-equipos" class="hidden">
+    <h2 style="font-size:17px;font-weight:700;color:#fbbf24;margin-bottom:16px;">🌆 Gestión de Equipos</h2>
+
+    <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap">
+        <button id="load-teams-btn"   class="btn-primary" style="background:#1f6feb">⏳ Cargar equipos</button>
+        <button id="create-team-admin-btn" class="btn-primary" style="background:#d97706">+ Crear equipo</button>
+    </div>
+
+    <!-- Create team form (hidden by default) -->
+    <div id="admin-create-team-form" style="display:none;background:#161b22;border:1px solid #30363d;border-radius:10px;padding:18px;margin-bottom:18px">
+        <h3 style="font-size:14px;font-weight:700;color:#e6edf3;margin-bottom:12px">Nuevo equipo</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+                <label style="font-size:12px;color:#8b949e;display:block;margin-bottom:4px">Nombre del equipo</label>
+                <input id="admin-team-name" type="text" maxlength="40" placeholder="Nombre del equipo"
+                    style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px;color:#e6edf3;font-size:13px">
+            </div>
+            <div>
+                <label style="font-size:12px;color:#8b949e;display:block;margin-bottom:4px">ID público del capitán</label>
+                <input id="admin-team-captain" type="text" placeholder="ID público del capitán"
+                    style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px;color:#e6edf3;font-size:13px">
+            </div>
+        </div>
+        <div style="display:flex;gap:8px">
+            <button id="admin-create-team-submit" class="btn-primary" style="background:#d97706">Crear</button>
+            <button onclick="document.getElementById('admin-create-team-form').style.display='none'" style="background:#21262d;border:1px solid #30363d;color:#8b949e;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px">Cancelar</button>
+        </div>
+        <p id="admin-create-team-error" style="color:#f85149;font-size:12px;margin-top:6px;display:none"></p>
+    </div>
+
+    <div id="teams-list">
+        <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar equipos" para ver todos los equipos.</p>
+    </div>
+
+    <!-- Edit team modal -->
+    <div id="admin-edit-team-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:50;align-items:center;justify-content:center;padding:1rem">
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:12px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;padding:24px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                <h3 id="edit-team-modal-title" style="font-size:15px;font-weight:700;color:#e6edf3">Editar equipo</h3>
+                <button onclick="closeEditTeamModal()" style="background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer">✕</button>
+            </div>
+            <div id="edit-team-modal-body"></div>
+        </div>
+    </div>
+</div>
+
+
 </body>
 </html>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN — MISTERIOS DE TARDE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let allTardeResponses = [];
+let allAdminTeams     = [];
+let currentTardeReviewRow = null;
+
+function adminToken() { return document.getElementById('admin-token')?.value?.trim() || ''; }
+
+// ── Responses ────────────────────────────────────────────────────────────────
+
+document.getElementById('load-tarde-resp-btn').addEventListener('click', loadTardeResponses);
+
+async function loadTardeResponses() {
+    const token = adminToken();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    const listEl = document.getElementById('tarde-responses-list');
+    listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">⏳ Cargando...</p>';
+
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getTardeResponses&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (!Array.isArray(data)) { listEl.innerHTML = `<p style="color:#f85149;font-size:13px">${esc(data.error||'Error')}</p>`; return; }
+
+        allTardeResponses = data;
+        renderTardeResponses();
+    } catch(e) {
+        listEl.innerHTML = `<p style="color:#f85149;font-size:13px">Error de conexión: ${esc(e.message)}</p>`;
+    }
+}
+
+function renderTardeResponses() {
+    const listEl      = document.getElementById('tarde-responses-list');
+    const pendingOnly = document.getElementById('tarde-resp-pending-only').checked;
+    const rows        = pendingOnly ? allTardeResponses.filter(r => !r.counted) : allTardeResponses;
+
+    if (rows.length === 0) {
+        listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">Sin respuestas' + (pendingOnly ? ' pendientes' : '') + '.</p>';
+        return;
+    }
+
+    listEl.innerHTML = rows.map(r => `
+        <div style="background:#161b22;border:1px solid ${r.correct ? '#238636' : r.counted ? '#da3633' : '#30363d'};border-radius:10px;padding:16px;margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+                <div>
+                    <span style="font-size:12px;color:#fbbf24;font-weight:700">🌆 ${esc(r.teamId.substring(0,16))}…</span>
+                    <span style="font-size:11px;color:#8b949e;margin-left:8px">${new Date(r.timestamp).toLocaleString('es-ES')}</span>
+                </div>
+                <span style="font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700;${
+                    r.correct ? 'background:#238636;color:#fff' :
+                    r.counted ? 'background:#da3633;color:#fff' :
+                    'background:#21262d;color:#8b949e'}">
+                    ${r.correct ? '✅ Correcta' : r.counted ? '❌ Incorrecta' : '⏳ Pendiente'}
+                </span>
+            </div>
+            <div style="font-size:12px;color:#8b949e;margin-bottom:8px">
+                Misterio: <span style="color:#79c0ff">${esc(r.mysteryId)}</span>
+                · Enviado por: <span style="color:#c9d1d9;font-family:monospace">${esc(r.senderPubId||'—')}</span>
+            </div>
+            <div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:12px;margin-bottom:8px">
+                <div style="font-size:12px;color:#8b949e;margin-bottom:4px">Respuesta:</div>
+                <div style="font-size:14px;color:#e6edf3;font-weight:600">${esc(r.solution)}</div>
+                ${r.explanation ? `<div style="font-size:12px;color:#8b949e;margin-top:6px">${esc(r.explanation)}</div>` : ''}
+            </div>
+            <div style="font-size:12px;color:#8b949e;margin-bottom:${r.counted ? '0' : '10px'}">
+                Presentes: ${(r.presentMembers||[]).map(m => `<span style="font-family:monospace;background:#21262d;padding:1px 6px;border-radius:4px;margin-right:4px">${esc(m.substring(0,10))}…</span>`).join('') || '—'}
+            </div>
+            ${r.comment ? `<div style="font-size:12px;color:#8b949e;font-style:italic;margin-bottom:${r.counted?'0':'10px'}">Comentario admin: ${esc(r.comment)}</div>` : ''}
+            ${!r.counted ? `
+            <button onclick="openTardeReview(${r.row})" style="background:#1f6feb;border:none;color:#fff;font-size:12px;font-weight:600;padding:6px 14px;border-radius:6px;cursor:pointer">
+                Revisar
+            </button>` : ''}
+        </div>`).join('');
+}
+
+document.getElementById('tarde-resp-pending-only').addEventListener('change', renderTardeResponses);
+
+function openTardeReview(row) {
+    currentTardeReviewRow = row;
+    const r    = allTardeResponses.find(x => x.row === row);
+    if (!r) return;
+    document.getElementById('tarde-review-body').innerHTML = `
+        <div style="margin-bottom:12px"><span style="color:#8b949e">Equipo:</span> <span style="color:#fbbf24;font-family:monospace">${esc(r.teamId)}</span></div>
+        <div style="margin-bottom:12px"><span style="color:#8b949e">Misterio:</span> <span style="color:#79c0ff">${esc(r.mysteryId)}</span></div>
+        <div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:12px;margin-bottom:12px">
+            <div style="font-size:12px;color:#8b949e;margin-bottom:4px">Respuesta:</div>
+            <div style="font-size:15px;color:#e6edf3;font-weight:700">${esc(r.solution)}</div>
+            ${r.explanation ? `<div style="font-size:12px;color:#8b949e;margin-top:6px">${esc(r.explanation)}</div>` : ''}
+        </div>
+        <div style="font-size:12px;color:#8b949e">Presentes: ${(r.presentMembers||[]).map(m=>`<code style="background:#21262d;padding:1px 5px;border-radius:4px">${esc(m)}</code>`).join(' ')}</div>`;
+    document.getElementById('tarde-review-comment').value = '';
+    const modal = document.getElementById('tarde-review-modal');
+    modal.style.display = 'flex';
+}
+
+function closeTardeReview() { document.getElementById('tarde-review-modal').style.display = 'none'; }
+
+async function sendTardeReview(action) {
+    const token   = adminToken();
+    const comment = document.getElementById('tarde-review-comment').value.trim();
+    const row     = currentTardeReviewRow;
+    if (!row) return;
+
+    const correctBtn   = document.getElementById('tarde-mark-correct-btn');
+    const incorrectBtn = document.getElementById('tarde-mark-incorrect-btn');
+    correctBtn.disabled = incorrectBtn.disabled = true;
+
+    try {
+        const res  = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body  : JSON.stringify({ action, row, comment, token })
+        });
+        const data = await res.json();
+        if (data.error) { toast('❌ ' + data.error, false); }
+        else {
+            toast(action === 'markTardeCorrect'
+                ? `✅ Correcta · Posición #${data.position} · +${data.points} pts`
+                : '❌ Marcada como incorrecta');
+            closeTardeReview();
+            await loadTardeResponses();
+        }
+    } catch(e) { toast('Error de conexión', false); }
+    finally { correctBtn.disabled = incorrectBtn.disabled = false; }
+}
+
+document.getElementById('tarde-mark-correct-btn').addEventListener('click', () => sendTardeReview('markTardeCorrect'));
+document.getElementById('tarde-mark-incorrect-btn').addEventListener('click', () => sendTardeReview('markTardeIncorrect'));
+
+// ── Teams management ─────────────────────────────────────────────────────────
+
+document.getElementById('load-teams-btn').addEventListener('click', loadAdminTeams);
+document.getElementById('create-team-admin-btn').addEventListener('click', () => {
+    const f = document.getElementById('admin-create-team-form');
+    f.style.display = f.style.display === 'none' ? 'block' : 'none';
+});
+document.getElementById('admin-create-team-submit').addEventListener('click', adminCreateTeam);
+
+async function loadAdminTeams() {
+    const listEl = document.getElementById('teams-list');
+    listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">⏳ Cargando...</p>';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getAllTeams`);
+        const data = await res.json();
+        if (!Array.isArray(data)) { listEl.innerHTML = `<p style="color:#f85149">${esc(data.error||'Error')}</p>`; return; }
+        allAdminTeams = data;
+        renderAdminTeams();
+    } catch(e) { listEl.innerHTML = `<p style="color:#f85149">Error: ${esc(e.message)}</p>`; }
+}
+
+function renderAdminTeams() {
+    const listEl = document.getElementById('teams-list');
+    if (!allAdminTeams.length) { listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">Sin equipos.</p>'; return; }
+
+    listEl.innerHTML = allAdminTeams.map(t => `
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <div>
+                    <span style="font-size:15px;font-weight:700;color:#fbbf24">${esc(t.name)}</span>
+                    <code style="background:#21262d;color:#d2a8ff;font-size:12px;padding:2px 8px;border-radius:6px;margin-left:8px;letter-spacing:0.15em">${esc(t.code||'—')}</code>
+                </div>
+                <div style="display:flex;gap:6px">
+                    <button onclick="openEditTeamModal('${t.id}')" style="background:#1f6feb;border:none;color:#fff;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:600">Editar</button>
+                    <button onclick="adminDeleteTeam('${t.id}','${esc(t.name)}')" style="background:#da3633;border:none;color:#fff;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:600">Eliminar</button>
+                </div>
+            </div>
+            <div style="font-size:12px;color:#8b949e;display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                <div>👑 Capitán: <code style="color:#e3b341">${esc((t.captain||'—').substring(0,16))}…</code></div>
+                <div>👥 ${t.members.length} miembro${t.members.length!==1?'s':''}</div>
+                ${t.admins.length ? `<div style="grid-column:span 2">⭐ Admins: ${t.admins.map(a=>`<code style="background:#21262d;padding:1px 5px;border-radius:4px">${esc(a.substring(0,12))}…</code>`).join(' ')}</div>` : ''}
+            </div>
+            <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">
+                ${t.members.map(m=>`<span style="font-family:monospace;background:#0d1117;border:1px solid #21262d;padding:2px 8px;border-radius:20px;font-size:11px;color:#8b949e">${esc(m.substring(0,12))}…</span>`).join('')}
+            </div>
+        </div>`).join('');
+}
+
+function openEditTeamModal(teamId) {
+    const team = allAdminTeams.find(t => t.id === teamId);
+    if (!team) return;
+    document.getElementById('edit-team-modal-title').textContent = `Editar: ${team.name}`;
+
+    document.getElementById('edit-team-modal-body').innerHTML = `
+        <div style="display:grid;gap:14px">
+            <div>
+                <label style="font-size:12px;color:#8b949e;display:block;margin-bottom:4px">Nombre del equipo</label>
+                <input id="et-name" type="text" value="${esc(team.name)}" maxlength="40"
+                    style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px;color:#e6edf3;font-size:13px">
+            </div>
+            <div>
+                <label style="font-size:12px;color:#8b949e;display:block;margin-bottom:4px">ID público del capitán</label>
+                <input id="et-captain" type="text" value="${esc(team.captain||'')}"
+                    style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px;color:#e6edf3;font-size:13px;font-family:monospace">
+            </div>
+            <div>
+                <label style="font-size:12px;color:#8b949e;display:block;margin-bottom:4px">Admins (IDs públicos separados por coma)</label>
+                <input id="et-admins" type="text" value="${esc((team.admins||[]).join(','))}"
+                    style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px;color:#e6edf3;font-size:13px;font-family:monospace">
+            </div>
+            <div>
+                <label style="font-size:12px;color:#8b949e;display:block;margin-bottom:4px">Miembros (IDs públicos separados por coma)</label>
+                <textarea id="et-members" rows="3"
+                    style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px;color:#e6edf3;font-size:12px;font-family:monospace;resize:vertical">${esc((team.members||[]).join(','))}</textarea>
+            </div>
+            <p id="et-error" style="color:#f85149;font-size:12px;display:none"></p>
+            <div style="display:flex;gap:8px">
+                <button onclick="adminSaveTeam('${teamId}')" style="flex:1;background:#238636;border:none;color:#fff;font-weight:700;padding:9px;border-radius:8px;cursor:pointer">Guardar cambios</button>
+                <button onclick="closeEditTeamModal()" style="background:#21262d;border:1px solid #30363d;color:#8b949e;padding:9px 18px;border-radius:8px;cursor:pointer;font-size:13px">Cancelar</button>
+            </div>
+        </div>`;
+
+    document.getElementById('admin-edit-team-modal').style.display = 'flex';
+}
+
+function closeEditTeamModal() { document.getElementById('admin-edit-team-modal').style.display = 'none'; }
+
+async function adminSaveTeam(teamId) {
+    const token   = adminToken();
+    const name    = document.getElementById('et-name').value.trim();
+    const captain = document.getElementById('et-captain').value.trim();
+    const admins  = document.getElementById('et-admins').value.trim();
+    const members = document.getElementById('et-members').value.trim();
+    const errEl   = document.getElementById('et-error');
+    errEl.style.display = 'none';
+
+    try {
+        const res  = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body  : JSON.stringify({ action:'adminUpdateTeam', teamId, name, captainPubId:captain, adminIds:admins, memberIds:members, token })
+        });
+        const data = await res.json();
+        if (data.error) { errEl.textContent = data.error; errEl.style.display = 'block'; }
+        else { toast('✅ Equipo actualizado'); closeEditTeamModal(); await loadAdminTeams(); }
+    } catch(e) { errEl.textContent = 'Error de conexión'; errEl.style.display = 'block'; }
+}
+
+async function adminDeleteTeam(teamId, name) {
+    if (!confirm(`¿Eliminar el equipo "${name}"? Esta acción no se puede deshacer.`)) return;
+    const token = adminToken();
+    try {
+        const res  = await fetch(APPS_SCRIPT_URL, { method:'POST', body: JSON.stringify({ action:'adminDeleteTeam', teamId, token }) });
+        const data = await res.json();
+        if (data.error) toast('❌ ' + data.error, false);
+        else { toast('✅ Equipo eliminado'); await loadAdminTeams(); }
+    } catch { toast('Error de conexión', false); }
+}
+
+async function adminCreateTeam() {
+    const token   = adminToken();
+    const name    = document.getElementById('admin-team-name').value.trim();
+    const captain = document.getElementById('admin-team-captain').value.trim();
+    const errEl   = document.getElementById('admin-create-team-error');
+    errEl.style.display = 'none';
+    if (!name || !captain) { errEl.textContent = 'Nombre y capitán requeridos.'; errEl.style.display = 'block'; return; }
+    try {
+        const res  = await fetch(APPS_SCRIPT_URL, { method:'POST', body: JSON.stringify({ action:'createTeam', name, captainPubId:captain, token }) });
+        const data = await res.json();
+        if (data.error) { errEl.textContent = data.error; errEl.style.display = 'block'; }
+        else {
+            toast(`✅ Equipo creado · Código: ${data.code}`);
+            document.getElementById('admin-create-team-form').style.display = 'none';
+            document.getElementById('admin-team-name').value = '';
+            document.getElementById('admin-team-captain').value = '';
+            await loadAdminTeams();
+        }
+    } catch { errEl.textContent = 'Error de conexión'; errEl.style.display = 'block'; }
+}
+</script>
