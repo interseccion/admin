@@ -3040,40 +3040,50 @@ function updateNotifPreview() {
 <!-- TAB: TARDE — RESPUESTAS                                         -->
 <!-- ─────────────────────────────────────────────────────────────── -->
 <div id="tab-tarde-respuestas" class="hidden">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-        <h2 style="font-size:17px;font-weight:700;color:#fbbf24;margin:0">🌆 Respuestas de Tarde</h2>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <button id="load-tarde-resp-btn" class="btn-primary" style="background:#d97706;padding:6px 14px;font-size:13px">⟳ Cargar</button>
-            <select id="tarde-resp-filter" style="background:#21262d;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:5px 10px;font-size:13px">
-                <option value="pending">Solo pendientes</option>
-                <option value="all">Todas</option>
-                <option value="correct">Correctas</option>
-                <option value="incorrect">Incorrectas</option>
-            </select>
-            <span id="tarde-resp-count" style="font-size:12px;color:#8b949e"></span>
+
+    <!-- Misma estructura de cabecera que el panel normal -->
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <button class="btn btn-blue" id="load-tarde-resp-btn">🌆 Cargar respuestas tarde</button>
+        <select id="tarde-resp-filter" style="background:#21262d;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:5px 10px;font-size:13px">
+            <option value="pending">Solo pendientes</option>
+            <option value="all">Todas</option>
+            <option value="correct">Correctas</option>
+            <option value="incorrect">Incorrectas</option>
+        </select>
+        <span style="font-size:12px;color:#8b949e;" id="tarde-resp-count"></span>
+    </div>
+
+    <div class="card overflow-hidden">
+        <div id="tarde-responses-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar" para ver las respuestas de tarde.</p>
         </div>
     </div>
 
-    <div id="tarde-responses-list">
-        <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar" para ver las respuestas.</p>
-    </div>
-
-    <!-- Review modal — mismo estilo que el normal -->
-    <div id="tarde-review-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:50;align-items:center;justify-content:center;padding:1rem">
-        <div style="background:#0d1117;border:1px solid #30363d;border-radius:14px;width:100%;max-width:580px;max-height:90vh;overflow-y:auto">
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid #21262d">
-                <h3 style="font-size:15px;font-weight:700;color:#e6edf3;margin:0">Revisar respuesta de tarde</h3>
-                <button onclick="closeTardeReview()" style="background:none;border:none;color:#8b949e;font-size:22px;cursor:pointer;line-height:1">✕</button>
+    <!-- Modal — mismo HTML que review-modal pero para tarde -->
+    <div id="tarde-review-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-white" id="tarde-review-title">Revisar respuesta de tarde</h3>
+                <button onclick="closeTardeReview()" class="text-gray-400 hover:text-white text-xl">×</button>
             </div>
-            <div id="tarde-review-body" style="padding:20px;font-size:13px;color:#c9d1d9"></div>
-            <div style="padding:0 20px 20px">
-                <label style="font-size:12px;color:#8b949e;display:block;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Comentario para el equipo</label>
-                <textarea id="tarde-review-comment" rows="2" placeholder="Opcional — visible para el equipo"
-                    style="width:100%;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px;color:#e6edf3;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
-                <div style="display:flex;gap:10px;margin-top:12px">
-                    <button id="tarde-mark-correct-btn"   class="btn-primary" style="flex:1;background:#238636;font-size:14px;padding:10px">✅ Correcta</button>
-                    <button id="tarde-mark-incorrect-btn" class="btn-primary" style="flex:1;background:#da3633;font-size:14px;padding:10px">❌ Incorrecta</button>
-                </div>
+            <div id="tarde-review-content" class="space-y-3 mb-5"></div>
+            <div>
+                <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Comentario para el equipo (opcional)</label>
+                <textarea id="tarde-review-comment" rows="3" placeholder="Deja aquí un comentario..."></textarea>
+            </div>
+            <div class="flex gap-3 mt-4 justify-end flex-wrap" id="tarde-review-btns-pending">
+                <button class="btn btn-gray" onclick="closeTardeReview()">Cancelar</button>
+                <button class="btn btn-red"   id="tarde-wrong-btn">❌ Marcar incorrecta</button>
+                <button class="btn btn-green" id="tarde-correct-btn">✅ Marcar correcta</button>
+            </div>
+            <div class="flex gap-3 mt-4 justify-end flex-wrap hidden" id="tarde-review-btns-marked">
+                <button class="btn btn-gray" onclick="closeTardeReview()">Cerrar</button>
+                <button class="btn btn-purple" id="tarde-remark-btn">✏️ Corregir veredicto</button>
+            </div>
+            <div class="flex gap-3 mt-3 justify-end flex-wrap hidden" id="tarde-review-btns-remark">
+                <span style="font-size:12px;color:#8b949e;align-self:center;">Cambiar a:</span>
+                <button class="btn btn-red"   id="tarde-wrong-remark-btn">❌ Incorrecta</button>
+                <button class="btn btn-green" id="tarde-correct-remark-btn">✅ Correcta</button>
             </div>
         </div>
     </div>
@@ -3147,29 +3157,23 @@ function adminToken() { return document.getElementById('admin-token')?.value?.tr
 document.getElementById('load-tarde-resp-btn').addEventListener('click', loadTardeResponses);
 document.getElementById('tarde-resp-filter').addEventListener('change', renderTardeResponses);
 
+let currentTardeReviewRow = null;
+
 async function loadTardeResponses() {
     const token = adminToken();
     if (!token) { toast('Introduce el token admin', false); return; }
     const listEl = document.getElementById('tarde-responses-list');
     listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">⏳ Cargando...</p>';
-
     try {
         const res  = await fetch(`${APPS_SCRIPT_URL}?action=getTardeResponses&token=${encodeURIComponent(token)}`);
         const data = await res.json();
-        if (!Array.isArray(data)) {
-            listEl.innerHTML = `<p style="color:#f85149;font-size:13px;padding:20px">${esc(data.error||'Error al cargar')}</p>`;
-            return;
-        }
+        if (!Array.isArray(data)) { listEl.innerHTML = `<p style="color:#f85149;padding:20px">${esc(data.error||'Error')}</p>`; return; }
         allTardeResponses = data;
         renderTardeResponses();
-    } catch(e) {
-        listEl.innerHTML = `<p style="color:#f85149;font-size:13px;padding:20px">Error: ${esc(e.message)}</p>`;
-    }
+    } catch(e) { listEl.innerHTML = `<p style="color:#f85149;padding:20px">Error: ${esc(e.message)}</p>`; }
 }
 
-function _tardeSolStatus(r) {
-    // Mismo criterio que las respuestas normales:
-    // correcto=true y contada=true → verde; correcto=false y contada=true → rojo; demás → pendiente
+function _tardeSt(r) {
     if (r.correct === true  && r.counted === true)  return 'correct';
     if (r.correct === false && r.counted === true)  return 'incorrect';
     return 'pending';
@@ -3179,130 +3183,138 @@ function renderTardeResponses() {
     const listEl  = document.getElementById('tarde-responses-list');
     const filter  = document.getElementById('tarde-resp-filter').value;
     const countEl = document.getElementById('tarde-resp-count');
-
     const rows = allTardeResponses.filter(r => {
-        const st = _tardeSolStatus(r);
+        const st = _tardeSt(r);
         if (filter === 'pending')   return st === 'pending';
         if (filter === 'correct')   return st === 'correct';
         if (filter === 'incorrect') return st === 'incorrect';
         return true;
     });
-
-    countEl.textContent = `${rows.length} de ${allTardeResponses.length}`;
-
-    if (rows.length === 0) {
-        listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">Sin respuestas con este filtro.</p>';
-        return;
-    }
-
-    const statusBadge = r => {
-        const st = _tardeSolStatus(r);
-        if (st === 'correct')   return '<span style="background:#1a4731;color:#3fb950;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;border:1px solid #238636">✅ Correcta</span>';
-        if (st === 'incorrect') return '<span style="background:#3d1212;color:#f85149;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;border:1px solid #da3633">❌ Incorrecta</span>';
-        return '<span style="background:#21262d;color:#8b949e;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;border:1px solid #30363d">⏳ Pendiente</span>';
-    };
-
-    const borderColor = r => {
-        const st = _tardeSolStatus(r);
-        if (st === 'correct')   return '#238636';
-        if (st === 'incorrect') return '#da3633';
-        return '#30363d';
-    };
+    countEl.textContent = `${rows.length} / ${allTardeResponses.length}`;
+    if (!rows.length) { listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">Sin respuestas con este filtro.</p>'; return; }
 
     listEl.innerHTML = rows.map(r => {
-        const isPending = _tardeSolStatus(r) === 'pending';
+        const st = _tardeSt(r);
+        const borderCls = st === 'correct' ? 'border-l-4' : st === 'incorrect' ? 'border-l-4' : '';
+        const borderColor = st === 'correct' ? 'border-green-600' : st === 'incorrect' ? 'border-red-700' : '';
+        const badgeHtml = st === 'correct'
+            ? '<span class="badge badge-green">✅ Correcta</span>'
+            : st === 'incorrect'
+            ? '<span class="badge badge-red">❌ Incorrecta</span>'
+            : '<span class="badge badge-gray">⏳ Pendiente</span>';
         return `
-        <div style="background:#161b22;border:1px solid ${borderColor(r)};border-radius:10px;padding:16px;margin-bottom:10px">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px">
-                <div style="min-width:0">
-                    <div style="font-size:13px;font-weight:700;color:#fbbf24;margin-bottom:2px">
-                        🌆 ${esc(r.teamId||'—')}
-                    </div>
-                    <div style="font-size:11px;color:#8b949e">
-                        ${new Date(r.timestamp).toLocaleString('es-ES')} ·
-                        <span style="font-family:monospace">${esc((r.senderPubId||r.senderPrivId||'').substring(0,18))}…</span>
-                    </div>
+        <div class="response-row ${borderCls} ${borderColor}" data-row="${r.row}">
+            <div class="resp-header">
+                <div>
+                    <span class="resp-name">🌆 ${esc((r.teamId||'—').substring(0,20))}</span>
+                    <span class="resp-mystery">${esc(r.mysteryId||'—')}</span>
                 </div>
-                ${statusBadge(r)}
+                <div class="flex items-center gap-2">
+                    ${badgeHtml}
+                    ${st === 'pending' ? `<button class="btn btn-blue btn-sm" onclick="openTardeReview(${r.row})">Revisar</button>` : `<button class="btn btn-gray btn-sm" onclick="openTardeReview(${r.row})">Ver</button>`}
+                </div>
             </div>
-
-            <div style="font-size:12px;color:#8b949e;margin-bottom:8px">
-                Misterio: <code style="color:#79c0ff">${esc(r.mysteryId||'—')}</code>
+            <div class="resp-solution">${esc(r.solution||'—')}</div>
+            ${r.explanation ? `<div class="resp-explanation">${esc(r.explanation)}</div>` : ''}
+            <div class="resp-meta">
+                <span>${new Date(r.timestamp).toLocaleString('es-ES')}</span>
+                ${(r.presentMembers||[]).length ? `<span>👥 ${(r.presentMembers||[]).length} presentes</span>` : ''}
+                ${r.comment ? `<span>💬 ${esc(r.comment)}</span>` : ''}
             </div>
-
-            <div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:12px;margin-bottom:8px">
-                <div style="font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Respuesta</div>
-                <div style="font-size:14px;color:#e6edf3;font-weight:600">${esc(r.solution||'—')}</div>
-                ${r.explanation ? `<div style="font-size:12px;color:#8b949e;margin-top:6px;font-style:italic">${esc(r.explanation)}</div>` : ''}
-            </div>
-
-            ${(r.presentMembers||[]).length ? `
-            <div style="font-size:12px;color:#8b949e;margin-bottom:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">
-                <span>Presentes:</span>
-                ${(r.presentMembers||[]).map(m=>`<code style="background:#21262d;padding:1px 6px;border-radius:4px;font-size:11px">${esc(m)}</code>`).join('')}
-            </div>` : ''}
-
-            ${r.comment ? `<div style="font-size:12px;color:#8b949e;font-style:italic;margin-bottom:8px">💬 ${esc(r.comment)}</div>` : ''}
-
-            ${isPending ? `
-            <button onclick="openTardeReview(${r.row})"
-                    style="margin-top:4px;background:#1f6feb;border:none;color:#fff;font-size:12px;font-weight:600;padding:6px 16px;border-radius:6px;cursor:pointer">
-                Revisar
-            </button>` : ''}
         </div>`;
     }).join('');
 }
 
 function openTardeReview(row) {
-    currentTardeReviewRow = row;
-    const r    = allTardeResponses.find(x => x.row === row);
+    const r = allTardeResponses.find(x => x.row === row);
     if (!r) return;
-    document.getElementById('tarde-review-body').innerHTML = `
-        <div style="margin-bottom:12px"><span style="color:#8b949e">Equipo:</span> <span style="color:#fbbf24;font-family:monospace">${esc(r.teamId)}</span></div>
-        <div style="margin-bottom:12px"><span style="color:#8b949e">Misterio:</span> <span style="color:#79c0ff">${esc(r.mysteryId)}</span></div>
-        <div style="background:#0d1117;border:1px solid #21262d;border-radius:8px;padding:12px;margin-bottom:12px">
-            <div style="font-size:12px;color:#8b949e;margin-bottom:4px">Respuesta:</div>
-            <div style="font-size:15px;color:#e6edf3;font-weight:700">${esc(r.solution)}</div>
-            ${r.explanation ? `<div style="font-size:12px;color:#8b949e;margin-top:6px">${esc(r.explanation)}</div>` : ''}
+    currentTardeReviewRow = row;
+    const st = _tardeSt(r);
+    const isMarked = st !== 'pending';
+
+    document.getElementById('tarde-review-title').textContent = `Tarde: ${(r.teamId||'—').substring(0,20)} — ${r.mysteryId||'—'}`;
+    document.getElementById('tarde-review-comment').value = r.comment || '';
+
+    document.getElementById('tarde-review-content').innerHTML = `
+        <div class="grid grid-cols-2 gap-3">
+            <div style="background:#0d1117;border-radius:8px;padding:12px;">
+                <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:4px;">Equipo</p>
+                <p class="text-sm text-white font-bold">${esc(r.teamId||'—')}</p>
+            </div>
+            <div style="background:#0d1117;border-radius:8px;padding:12px;">
+                <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:4px;">Misterio</p>
+                <p class="text-sm text-white font-bold">${esc(r.mysteryId||'—')}</p>
+                <p style="font-size:11px;color:#6b7280;">${new Date(r.timestamp).toLocaleString('es-ES')}</p>
+            </div>
         </div>
-        <div style="font-size:12px;color:#8b949e">Presentes: ${(r.presentMembers||[]).map(m=>`<code style="background:#21262d;padding:1px 5px;border-radius:4px">${esc(m)}</code>`).join(' ')}</div>`;
-    document.getElementById('tarde-review-comment').value = '';
-    const modal = document.getElementById('tarde-review-modal');
-    modal.style.display = 'flex';
+        ${isMarked ? `<div style="background:${st==='correct'?'#052e16':'#450a0a'};border-radius:8px;padding:10px;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;">${st==='correct'?'✅':'❌'}</span>
+            <span style="font-size:13px;font-weight:700;color:${st==='correct'?'#4ade80':'#f87171'};">Ya marcada como ${st==='correct'?'correcta':'incorrecta'}</span>
+        </div>` : ''}
+        <div style="background:#0d1117;border-radius:8px;padding:12px;">
+            <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Solución propuesta</p>
+            <p class="text-sm text-white">${esc(r.solution||'—')}</p>
+        </div>
+        ${r.explanation ? `<div style="background:#0d1117;border-radius:8px;padding:12px;">
+            <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Explicación</p>
+            <p class="text-sm text-gray-300">${esc(r.explanation)}</p>
+        </div>` : ''}
+        ${(r.presentMembers||[]).length ? `<div style="background:#0d1117;border-radius:8px;padding:12px;">
+            <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Miembros presentes</p>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;">${(r.presentMembers||[]).map(m=>`<code style="background:#21262d;padding:2px 6px;border-radius:4px;font-size:11px;">${esc(m)}</code>`).join('')}</div>
+        </div>` : ''}
+    `;
+
+    document.getElementById('tarde-review-btns-pending').classList.toggle('hidden', isMarked);
+    document.getElementById('tarde-review-btns-marked').classList.toggle('hidden', !isMarked);
+    document.getElementById('tarde-review-btns-remark').classList.add('hidden');
+    document.getElementById('tarde-review-modal').classList.remove('hidden');
 }
 
-function closeTardeReview() { document.getElementById('tarde-review-modal').style.display = 'none'; }
+function closeTardeReview() {
+    document.getElementById('tarde-review-modal').classList.add('hidden');
+    currentTardeReviewRow = null;
+}
 
 async function sendTardeReview(action) {
+    if (!currentTardeReviewRow) return;
     const token   = adminToken();
     const comment = document.getElementById('tarde-review-comment').value.trim();
-    const row     = currentTardeReviewRow;
-    if (!row) return;
-
-    const correctBtn   = document.getElementById('tarde-mark-correct-btn');
-    const incorrectBtn = document.getElementById('tarde-mark-incorrect-btn');
-    correctBtn.disabled = incorrectBtn.disabled = true;
+    const remarkVisible = !document.getElementById('tarde-review-btns-remark').classList.contains('hidden');
+    const btnId = remarkVisible
+        ? (action === 'markTardeCorrect' ? 'tarde-correct-remark-btn' : 'tarde-wrong-remark-btn')
+        : (action === 'markTardeCorrect' ? 'tarde-correct-btn'        : 'tarde-wrong-btn');
+    const btn = document.getElementById(btnId);
+    if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
 
     try {
-        const res  = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            body  : JSON.stringify({ action, row, comment, token })
-        });
-        const data = await res.json();
-        if (data.error) { toast('❌ ' + data.error, false); }
+        const data = await adminPost({ action, row: currentTardeReviewRow, comment, token });
+        if (data.error) { toast('Error: ' + data.error, false); }
         else {
             toast(action === 'markTardeCorrect'
-                ? `✅ Correcta · Posición #${data.position} · +${data.points} pts`
+                ? `✅ Correcta · #${data.position} · +${data.points} pts`
                 : '❌ Marcada como incorrecta');
+            const idx = allTardeResponses.findIndex(r => r.row === currentTardeReviewRow);
+            if (idx >= 0) {
+                allTardeResponses[idx].correct  = action === 'markTardeCorrect';
+                allTardeResponses[idx].counted  = true;
+                allTardeResponses[idx].comment  = comment;
+            }
             closeTardeReview();
-            await loadTardeResponses();
+            renderTardeResponses();
         }
-    } catch(e) { toast('Error de conexión', false); }
-    finally { correctBtn.disabled = incorrectBtn.disabled = false; }
+    } catch(e) { toast('Error: ' + e.message, false); }
+    finally { if (btn) { btn.disabled = false; btn.textContent = btn.textContent.replace('⏳...', action==='markTardeCorrect'?'✅ Marcar correcta':'❌ Marcar incorrecta'); } }
 }
 
-document.getElementById('tarde-mark-correct-btn').addEventListener('click', () => sendTardeReview('markTardeCorrect'));
-document.getElementById('tarde-mark-incorrect-btn').addEventListener('click', () => sendTardeReview('markTardeIncorrect'));
+document.getElementById('tarde-review-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeTardeReview(); });
+document.getElementById('tarde-correct-btn')       .addEventListener('click', () => sendTardeReview('markTardeCorrect'));
+document.getElementById('tarde-wrong-btn')          .addEventListener('click', () => sendTardeReview('markTardeIncorrect'));
+document.getElementById('tarde-correct-remark-btn') .addEventListener('click', () => sendTardeReview('markTardeCorrect'));
+document.getElementById('tarde-wrong-remark-btn')   .addEventListener('click', () => sendTardeReview('markTardeIncorrect'));
+document.getElementById('tarde-remark-btn')         .addEventListener('click', () => {
+    document.getElementById('tarde-review-btns-remark').classList.remove('hidden');
+});
 
 // ── Teams management ─────────────────────────────────────────────────────────
 
@@ -3379,6 +3391,13 @@ function openEditTeamModal(teamId) {
                 <textarea id="et-members" rows="3"
                     style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px;color:#e6edf3;font-size:12px;font-family:monospace;resize:vertical">${esc((team.members||[]).join(','))}</textarea>
             </div>
+            <div>
+                <label style="font-size:12px;color:#8b949e;display:block;margin-bottom:4px">Código de invitación</label>
+                <input id="et-code" type="text" maxlength="6" value="${esc(team.code||'')}"
+                    style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px;color:#fbbf24;font-family:monospace;font-size:15px;letter-spacing:.2em;text-transform:uppercase"
+                    oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+                <p style="font-size:11px;color:#8b949e;margin-top:3px">6 caracteres. Si lo cambias, el código anterior deja de funcionar.</p>
+            </div>
             <p id="et-error" style="color:#f85149;font-size:12px;display:none"></p>
             <div style="display:flex;gap:8px">
                 <button onclick="adminSaveTeam('${teamId}')" style="flex:1;background:#238636;border:none;color:#fff;font-weight:700;padding:9px;border-radius:8px;cursor:pointer">Guardar cambios</button>
@@ -3397,13 +3416,14 @@ async function adminSaveTeam(teamId) {
     const captain = document.getElementById('et-captain').value.trim();
     const admins  = document.getElementById('et-admins').value.trim();
     const members = document.getElementById('et-members').value.trim();
+    const code    = (document.getElementById('et-code')?.value||'').trim().toUpperCase();
     const errEl   = document.getElementById('et-error');
     errEl.style.display = 'none';
 
     try {
         const res  = await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
-            body  : JSON.stringify({ action:'adminUpdateTeam', teamId, name, captainPubId:captain, adminIds:admins, memberIds:members, token })
+            body  : JSON.stringify({ action:'adminUpdateTeam', teamId, name, captainPubId:captain, adminIds:admins, memberIds:members, code, token })
         });
         const data = await res.json();
         if (data.error) { errEl.textContent = data.error; errEl.style.display = 'block'; }
