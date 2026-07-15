@@ -3130,6 +3130,13 @@ function adminToken() { return document.getElementById('admin-token')?.value?.tr
 
 // ── Responses ────────────────────────────────────────────────────────────────
 
+// ── TARDE: helpers ───────────────────────────────────────────────────────────
+function _tardeSt(r) {
+    if (r.correct === true  && r.counted === true) return 'correct';
+    if (r.correct === false && r.counted === true) return 'incorrect';
+    return 'pending';
+}
+
 // ── TARDE: variables ─────────────────────────────────────────────────────────
 let tardeSortDesc = true;
 let tardeRespPage = 1;
