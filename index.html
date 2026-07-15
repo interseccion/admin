@@ -3040,51 +3040,27 @@ function updateNotifPreview() {
 <!-- TAB: TARDE — RESPUESTAS                                         -->
 <!-- ─────────────────────────────────────────────────────────────── -->
 <div id="tab-tarde-respuestas" class="hidden">
-
-    <!-- Misma estructura de cabecera que el panel normal -->
+    <!-- Filtros — misma estructura que el panel normal -->
     <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
-        <button class="btn btn-blue" id="load-tarde-resp-btn">🌆 Cargar respuestas tarde</button>
-        <select id="tarde-resp-filter" style="background:#21262d;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:5px 10px;font-size:13px">
-            <option value="pending">Solo pendientes</option>
-            <option value="all">Todas</option>
-            <option value="correct">Correctas</option>
-            <option value="incorrect">Incorrectas</option>
+        <input type="text" id="tarde-filter-misterio" placeholder="🔍 Misterio..." style="width:180px;" list="tarde-autocomplete-mysteries" autocomplete="off">
+        <datalist id="tarde-autocomplete-mysteries"></datalist>
+        <select id="tarde-filter-estado" style="width:165px;">
+            <option value="">Todos los estados</option>
+            <option value="pending" selected>⏳ Pendientes</option>
+            <option value="correct">✅ Correctas</option>
+            <option value="wrong">❌ Incorrectas</option>
+            <option value="ignored">🙈 Ignoradas</option>
         </select>
+        <input type="text" id="tarde-filter-team" placeholder="Filtrar por equipo..." style="width:180px;" list="tarde-autocomplete-teams">
+        <datalist id="tarde-autocomplete-teams"></datalist>
+        <button class="btn btn-gray" id="tarde-clear-filters-btn" style="font-size:11px;padding:5px 10px;">✕ Todo</button>
+        <button class="btn btn-gray" id="tarde-sort-dir-btn" style="font-size:11px;padding:5px 10px;">↓ Más nuevas</button>
+        <button class="btn btn-blue" id="load-tarde-resp-btn">🌆 Cargar</button>
         <span style="font-size:12px;color:#8b949e;" id="tarde-resp-count"></span>
     </div>
-
     <div class="card overflow-hidden">
         <div id="tarde-responses-list">
             <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar" para ver las respuestas de tarde.</p>
-        </div>
-    </div>
-
-    <!-- Modal — mismo HTML que review-modal pero para tarde -->
-    <div id="tarde-review-modal" class="modal-overlay hidden">
-        <div class="modal-box">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-bold text-white" id="tarde-review-title">Revisar respuesta de tarde</h3>
-                <button onclick="closeTardeReview()" class="text-gray-400 hover:text-white text-xl">×</button>
-            </div>
-            <div id="tarde-review-content" class="space-y-3 mb-5"></div>
-            <div>
-                <label style="font-size:11px;font-weight:700;color:#8b949e;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Comentario para el equipo (opcional)</label>
-                <textarea id="tarde-review-comment" rows="3" placeholder="Deja aquí un comentario..."></textarea>
-            </div>
-            <div class="flex gap-3 mt-4 justify-end flex-wrap" id="tarde-review-btns-pending">
-                <button class="btn btn-gray" onclick="closeTardeReview()">Cancelar</button>
-                <button class="btn btn-red"   id="tarde-wrong-btn">❌ Marcar incorrecta</button>
-                <button class="btn btn-green" id="tarde-correct-btn">✅ Marcar correcta</button>
-            </div>
-            <div class="flex gap-3 mt-4 justify-end flex-wrap hidden" id="tarde-review-btns-marked">
-                <button class="btn btn-gray" onclick="closeTardeReview()">Cerrar</button>
-                <button class="btn btn-purple" id="tarde-remark-btn">✏️ Corregir veredicto</button>
-            </div>
-            <div class="flex gap-3 mt-3 justify-end flex-wrap hidden" id="tarde-review-btns-remark">
-                <span style="font-size:12px;color:#8b949e;align-self:center;">Cambiar a:</span>
-                <button class="btn btn-red"   id="tarde-wrong-remark-btn">❌ Incorrecta</button>
-                <button class="btn btn-green" id="tarde-correct-remark-btn">✅ Correcta</button>
-            </div>
         </div>
     </div>
 </div>
@@ -3154,77 +3130,167 @@ function adminToken() { return document.getElementById('admin-token')?.value?.tr
 
 // ── Responses ────────────────────────────────────────────────────────────────
 
+// ── TARDE: variables ─────────────────────────────────────────────────────────
+let tardeSortDesc = true;
+let tardeRespPage = 1;
+const TARDE_PAGE  = 30;
+
+function getTardeIgnored() {
+    try { return new Set(JSON.parse(localStorage.getItem('tardeIgnoredRows') || '[]')); } catch { return new Set(); }
+}
+function tardIgnore(row) {
+    const s = getTardeIgnored(); s.add(row);
+    localStorage.setItem('tardeIgnoredRows', JSON.stringify([...s]));
+    tardeRespPage = 1; renderTardeResponses(); toast('🙈 Ignorada');
+}
+function tardUnignore(row) {
+    const s = getTardeIgnored(); s.delete(row);
+    localStorage.setItem('tardeIgnoredRows', JSON.stringify([...s]));
+    tardeRespPage = 1; renderTardeResponses(); toast('↩️ Restaurada');
+}
+
+// ── TARDE: carga ──────────────────────────────────────────────────────────────
 document.getElementById('load-tarde-resp-btn').addEventListener('click', loadTardeResponses);
-document.getElementById('tarde-resp-filter').addEventListener('change', renderTardeResponses);
-
-
 
 async function loadTardeResponses() {
     const token = adminToken();
     if (!token) { toast('Introduce el token admin', false); return; }
-    const listEl = document.getElementById('tarde-responses-list');
-    listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">⏳ Cargando...</p>';
+    document.getElementById('tarde-responses-list').innerHTML =
+        '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
     try {
+        if (!Object.keys(mysteryTitleMap).length) await loadMysteryTitles();
         const res  = await fetch(`${APPS_SCRIPT_URL}?action=getTardeResponses&token=${encodeURIComponent(token)}`);
         const data = await res.json();
-        if (!Array.isArray(data)) { listEl.innerHTML = `<p style="color:#f85149;padding:20px">${esc(data.error||'Error')}</p>`; return; }
+        if (!Array.isArray(data)) { toast('Error: ' + (data.error || 'desconocido'), false); return; }
         allTardeResponses = data;
-        renderTardeResponses();
-    } catch(e) { listEl.innerHTML = `<p style="color:#f85149;padding:20px">Error: ${esc(e.message)}</p>`; }
+        document.getElementById('tarde-filter-estado').value = 'pending';
+        tardePoplateFilters();
+        tardeRespPage = 1; renderTardeResponses();
+        toast('✅ ' + data.length + ' respuestas de tarde cargadas');
+    } catch(e) { toast('Error: ' + e.message, false); }
 }
 
-function _tardeSt(r) {
-    if (r.correct === true  && r.counted === true)  return 'correct';
-    if (r.correct === false && r.counted === true)  return 'incorrect';
-    return 'pending';
+function tardePoplateFilters() {
+    const dlM = document.getElementById('tarde-autocomplete-mysteries');
+    const dlT = document.getElementById('tarde-autocomplete-teams');
+    if (dlM) {
+        const ids = [...new Set(allTardeResponses.map(r => r.mysteryId).filter(Boolean))].sort();
+        dlM.innerHTML = ids.map(id => `<option value="${esc(id)}">${esc(mysteryTitleMap[id] || id)}</option>`).join('');
+    }
+    if (dlT) {
+        const teams = [...new Set(allTardeResponses.map(r => r.teamId).filter(Boolean))];
+        dlT.innerHTML = teams.map(t => `<option value="${esc(t)}">`).join('');
+    }
 }
 
-function renderTardeResponses() {
-    const listEl  = document.getElementById('tarde-responses-list');
-    const filter  = document.getElementById('tarde-resp-filter').value;
-    const countEl = document.getElementById('tarde-resp-count');
-    const rows = allTardeResponses.filter(r => {
+// ── TARDE: filtrado ───────────────────────────────────────────────────────────
+function getFilteredTardeResponses() {
+    const mist    = document.getElementById('tarde-filter-misterio').value.toLowerCase();
+    const estado  = document.getElementById('tarde-filter-estado').value;
+    const team    = document.getElementById('tarde-filter-team').value.toLowerCase();
+    const ignored = getTardeIgnored();
+
+    const filtered = allTardeResponses.filter(r => {
+        if (mist) {
+            const idM = r.mysteryId?.toLowerCase().includes(mist);
+            const nmM = mysteryTitleMap[r.mysteryId]?.toLowerCase().includes(mist);
+            if (!idM && !nmM) return false;
+        }
+        if (estado === 'ignored') return ignored.has(r.row);
+        if (ignored.has(r.row)) return false;
         const st = _tardeSt(r);
-        if (filter === 'pending')   return st === 'pending';
-        if (filter === 'correct')   return st === 'correct';
-        if (filter === 'incorrect') return st === 'incorrect';
+        if (estado === 'pending'  && st !== 'pending')   return false;
+        if (estado === 'correct'  && st !== 'correct')   return false;
+        if (estado === 'wrong'    && st !== 'incorrect') return false;
+        if (team && !r.teamId?.toLowerCase().includes(team)) return false;
         return true;
     });
-    countEl.textContent = `${rows.length} / ${allTardeResponses.length}`;
-    if (!rows.length) { listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">Sin respuestas con este filtro.</p>'; return; }
 
-    listEl.innerHTML = rows.map(r => {
-        const st = _tardeSt(r);
-        const borderCls = st === 'correct' ? 'border-l-4' : st === 'incorrect' ? 'border-l-4' : '';
-        const borderColor = st === 'correct' ? 'border-green-600' : st === 'incorrect' ? 'border-red-700' : '';
-        const badgeHtml = st === 'correct'
-            ? '<span class="badge badge-green">✅ Correcta</span>'
-            : st === 'incorrect'
-            ? '<span class="badge badge-red">❌ Incorrecta</span>'
-            : '<span class="badge badge-gray">⏳ Pendiente</span>';
-        return `
-        <div class="response-row ${borderCls} ${borderColor}" data-row="${r.row}">
-            <div class="resp-header">
-                <div>
-                    <span class="resp-name">🌆 ${esc((r.teamId||'—').substring(0,20))}</span>
-                    <span class="resp-mystery">${esc(r.mysteryId||'—')}</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    ${badgeHtml}
-                    ${st === 'pending' ? `<button class="btn btn-blue btn-sm" onclick="openTardeReview(${r.row})">Revisar</button>` : `<button class="btn btn-gray btn-sm" onclick="openTardeReview(${r.row})">Ver</button>`}
-                </div>
-            </div>
-            <div class="resp-solution">${esc(r.solution||'—')}</div>
-            ${r.explanation ? `<div class="resp-explanation">${esc(r.explanation)}</div>` : ''}
-            <div class="resp-meta">
-                <span>${new Date(r.timestamp).toLocaleString('es-ES')}</span>
-                ${(r.presentMembers||[]).length ? `<span>👥 ${(r.presentMembers||[]).length} presentes</span>` : ''}
-                ${r.comment ? `<span>💬 ${esc(r.comment)}</span>` : ''}
-            </div>
-        </div>`;
-    }).join('');
+    filtered.sort((a, b) => {
+        const da = new Date(a.timestamp || 0), db = new Date(b.timestamp || 0);
+        return tardeSortDesc ? db - da : da - db;
+    });
+    return filtered;
 }
 
+// ── TARDE: render ─────────────────────────────────────────────────────────────
+function renderTardeResponses() {
+    const list    = document.getElementById('tarde-responses-list');
+    const data    = getFilteredTardeResponses();
+    const ignored = getTardeIgnored();
+    document.getElementById('tarde-resp-count').textContent =
+        data.length + ' resultado' + (data.length === 1 ? '' : 's');
+
+    if (!data.length) {
+        list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin resultados con esos filtros</p>';
+        return;
+    }
+
+    const visible = data.slice(0, tardeRespPage * TARDE_PAGE);
+    list.innerHTML = visible.map(r => {
+        const st        = _tardeSt(r);
+        const isIgnored = ignored.has(r.row);
+        const badge = isIgnored
+            ? '<span class="badge" style="background:#1a1a2e;color:#6b7280;border:1px solid #374151;">🙈 Ignorada</span>'
+            : st === 'pending'
+            ? '<span class="badge badge-pending">⏳ Pendiente</span>'
+            : st === 'correct'
+            ? '<span class="badge badge-correct">✅ Correcta</span>'
+            : '<span class="badge badge-wrong">❌ Incorrecta</span>';
+
+        const ignBtn = (st === 'pending' && !isIgnored)
+            ? `<button class="btn btn-gray" style="font-size:10px;padding:2px 7px;flex-shrink:0;" onclick="event.stopPropagation();tardIgnore(${r.row})">🙈 Ignorar</button>`
+            : isIgnored
+            ? `<button class="btn btn-gray" style="font-size:10px;padding:2px 7px;flex-shrink:0;" onclick="event.stopPropagation();tardUnignore(${r.row})">↩️ Restaurar</button>`
+            : '';
+
+        const fecha = (() => { try { return new Date(r.timestamp).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch { return r.timestamp||''; } })();
+
+        return `<div class="row-item px-4 py-4 cursor-pointer" onclick="openTardeReview(${r.row})">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div class="flex items-center gap-3 flex-wrap">
+                    ${badge}
+                    <span class="text-sm font-bold text-white">🌆 ${esc((r.teamId||'—').substring(0,24))}</span>
+                    <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#fbbf24;">${esc(mysteryTitleMap[r.mysteryId] || r.mysteryId || '—')}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    ${ignBtn}
+                    <span style="font-size:11px;color:#6b7280;">${fecha}</span>
+                </div>
+            </div>
+            <p class="text-sm text-gray-300 mt-2 line-clamp-2">${esc(r.solution || '')}</p>
+            ${(r.presentMembers||[]).length ? `<p style="font-size:11px;color:#8b949e;margin-top:3px;">👥 ${r.presentMembers.length} presentes</p>` : ''}
+            ${r.comment ? `<p style="font-size:11px;color:#8b949e;margin-top:3px;">💬 ${esc(r.comment)}</p>` : ''}
+        </div>`;
+    }).join('');
+
+    if (visible.length < data.length) {
+        const rem = data.length - visible.length;
+        list.innerHTML += `<div style="text-align:center;padding:16px;">
+            <button class="btn btn-gray" onclick="tardeRespPage++;renderTardeResponses();">
+                Ver ${Math.min(rem, TARDE_PAGE)} más (${rem} restantes)
+            </button></div>`;
+    }
+}
+
+// ── TARDE: filtros + sort event listeners ────────────────────────────────────
+['tarde-filter-misterio','tarde-filter-estado','tarde-filter-team'].forEach(id => {
+    document.getElementById(id).addEventListener('input',  () => { tardeRespPage=1; renderTardeResponses(); });
+    document.getElementById(id).addEventListener('change', () => { tardeRespPage=1; renderTardeResponses(); });
+});
+document.getElementById('tarde-clear-filters-btn').addEventListener('click', () => {
+    document.getElementById('tarde-filter-misterio').value = '';
+    document.getElementById('tarde-filter-estado').value   = '';
+    document.getElementById('tarde-filter-team').value     = '';
+    tardeRespPage = 1; renderTardeResponses();
+});
+document.getElementById('tarde-sort-dir-btn').addEventListener('click', () => {
+    tardeSortDesc = !tardeSortDesc;
+    document.getElementById('tarde-sort-dir-btn').textContent = tardeSortDesc ? '↓ Más nuevas' : '↑ Más antiguas';
+    tardeRespPage = 1; renderTardeResponses();
+});
+
+// ── TARDE: review modal ───────────────────────────────────────────────────────
 function openTardeReview(row) {
     const r = allTardeResponses.find(x => x.row === row);
     if (!r) return;
@@ -3232,7 +3298,8 @@ function openTardeReview(row) {
     const st = _tardeSt(r);
     const isMarked = st !== 'pending';
 
-    document.getElementById('tarde-review-title').textContent = `Tarde: ${(r.teamId||'—').substring(0,20)} — ${r.mysteryId||'—'}`;
+    document.getElementById('tarde-review-title').textContent =
+        `🌆 ${(r.teamId||'—').substring(0,22)} — ${esc(mysteryTitleMap[r.mysteryId] || r.mysteryId || '—')}`;
     document.getElementById('tarde-review-comment').value = r.comment || '';
 
     document.getElementById('tarde-review-content').innerHTML = `
@@ -3243,7 +3310,7 @@ function openTardeReview(row) {
             </div>
             <div style="background:#0d1117;border-radius:8px;padding:12px;">
                 <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:4px;">Misterio</p>
-                <p class="text-sm text-white font-bold">${esc(r.mysteryId||'—')}</p>
+                <p class="text-sm text-white font-bold">${esc(mysteryTitleMap[r.mysteryId] || r.mysteryId||'—')}</p>
                 <p style="font-size:11px;color:#6b7280;">${new Date(r.timestamp).toLocaleString('es-ES')}</p>
             </div>
         </div>
@@ -3257,8 +3324,7 @@ function openTardeReview(row) {
         </div>
         ${r.explanation ? `<div style="background:#0d1117;border-radius:8px;padding:12px;">
             <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Explicación</p>
-            <p class="text-sm text-gray-300">${esc(r.explanation)}</p>
-        </div>` : ''}
+            <p class="text-sm text-gray-300">${esc(r.explanation)}</p></div>` : ''}
         ${(r.presentMembers||[]).length ? `<div style="background:#0d1117;border-radius:8px;padding:12px;">
             <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Miembros presentes</p>
             <div style="display:flex;flex-wrap:wrap;gap:4px;">${(r.presentMembers||[]).map(m=>`<code style="background:#21262d;padding:2px 6px;border-radius:4px;font-size:11px;">${esc(m)}</code>`).join('')}</div>
@@ -3280,31 +3346,30 @@ async function sendTardeReview(action) {
     if (!currentTardeReviewRow) return;
     const token   = adminToken();
     const comment = document.getElementById('tarde-review-comment').value.trim();
-    const remarkVisible = !document.getElementById('tarde-review-btns-remark').classList.contains('hidden');
-    const btnId = remarkVisible
+    const inRemark = !document.getElementById('tarde-review-btns-remark').classList.contains('hidden');
+    const btnId = inRemark
         ? (action === 'markTardeCorrect' ? 'tarde-correct-remark-btn' : 'tarde-wrong-remark-btn')
         : (action === 'markTardeCorrect' ? 'tarde-correct-btn'        : 'tarde-wrong-btn');
     const btn = document.getElementById(btnId);
-    if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
-
+    if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
     try {
         const data = await adminPost({ action, row: currentTardeReviewRow, comment, token });
         if (data.error) { toast('Error: ' + data.error, false); }
         else {
             toast(action === 'markTardeCorrect'
                 ? `✅ Correcta · #${data.position} · +${data.points} pts`
-                : '❌ Marcada como incorrecta');
+                : '❌ Incorrecta');
             const idx = allTardeResponses.findIndex(r => r.row === currentTardeReviewRow);
             if (idx >= 0) {
-                allTardeResponses[idx].correct  = action === 'markTardeCorrect';
-                allTardeResponses[idx].counted  = true;
-                allTardeResponses[idx].comment  = comment;
+                allTardeResponses[idx].correct = action === 'markTardeCorrect';
+                allTardeResponses[idx].counted = true;
+                allTardeResponses[idx].comment = comment;
             }
             closeTardeReview();
-            renderTardeResponses();
+            tardeRespPage = 1; renderTardeResponses();
         }
     } catch(e) { toast('Error: ' + e.message, false); }
-    finally { if (btn) { btn.disabled = false; btn.textContent = btn.textContent.replace('⏳...', action==='markTardeCorrect'?'✅ Marcar correcta':'❌ Marcar incorrecta'); } }
+    finally { if (btn) { btn.disabled = false; btn.textContent = action==='markTardeCorrect'?'✅ Marcar correcta':'❌ Marcar incorrecta'; } }
 }
 
 document.getElementById('tarde-review-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeTardeReview(); });
