@@ -93,6 +93,7 @@
     <button class="tab-btn" data-tab="cuentas">🔑 Cuentas</button>
     <button class="tab-btn" data-tab="incidencias">🔴 Incidencias</button>
     <button class="tab-btn" data-tab="tarde-respuestas" style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Respuestas</button>
+    <button class="tab-btn" data-tab="tarde-sesiones"    style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Sesiones</button>
     <button class="tab-btn" data-tab="tarde-equipos"    style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Equipos</button>
 </div>
 
@@ -737,7 +738,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias','tarde-respuestas','tarde-equipos'].forEach(t => {
+        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias','tarde-respuestas','tarde-sesiones','tarde-equipos'].forEach(t => {
             const el = document.getElementById('tab-' + t);
             if (el) el.classList.toggle('hidden', t !== btn.dataset.tab);
         });
@@ -3056,6 +3057,7 @@ function updateNotifPreview() {
         <button class="btn btn-gray" id="tarde-clear-filters-btn" style="font-size:11px;padding:5px 10px;">✕ Todo</button>
         <button class="btn btn-gray" id="tarde-sort-dir-btn" style="font-size:11px;padding:5px 10px;">↓ Más nuevas</button>
         <button class="btn btn-blue" id="load-tarde-resp-btn">🌆 Cargar</button>
+        <button class="btn btn-gray" id="tarde-mini-podio-btn" style="font-size:11px;padding:5px 10px;">🏆 Mini-podio del misterio filtrado</button>
         <span style="font-size:12px;color:#8b949e;" id="tarde-resp-count"></span>
     </div>
     <div class="card overflow-hidden">
@@ -3090,6 +3092,32 @@ function updateNotifPreview() {
             <span style="font-size:12px;color:#8b949e;align-self:center;">Cambiar a:</span>
             <button class="btn btn-red"   id="tarde-wrong-remark-btn">❌ Incorrecta</button>
             <button class="btn btn-green" id="tarde-correct-remark-btn">✅ Correcta</button>
+        </div>
+    </div>
+</div>
+
+<!-- Mini-podio por misterio -->
+<div id="tarde-podio-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-white" id="tarde-podio-title">Mini-podio</h3>
+            <button onclick="document.getElementById('tarde-podio-modal').classList.add('hidden')" class="text-gray-400 hover:text-white text-xl leading-none">×</button>
+        </div>
+        <div id="tarde-podio-content" class="space-y-4"></div>
+    </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<!-- TAB: TARDE — SESIONES ACTIVAS                                   -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<div id="tab-tarde-sesiones" class="hidden">
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <button class="btn btn-blue" id="load-tarde-sesiones-btn">🌆 Cargar sesiones activas</button>
+        <span style="font-size:12px;color:#8b949e;" id="tarde-sesiones-count"></span>
+    </div>
+    <div class="card overflow-hidden">
+        <div id="tarde-sesiones-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar sesiones activas" para ver las partidas en curso.</p>
         </div>
     </div>
 </div>
@@ -3164,6 +3192,13 @@ function _tardeSt(r) {
     if (r.correct === true  && r.counted === true) return 'correct';
     if (r.correct === false && r.counted === true) return 'incorrect';
     return 'pending';
+}
+
+function _fmtTardeTime(seconds) {
+    const s = Math.round(seconds || 0);
+    const mm = Math.floor(s / 60);
+    const ss = s % 60;
+    return `${mm}:${String(ss).padStart(2,'0')}`;
 }
 
 // ── TARDE: variables ─────────────────────────────────────────────────────────
@@ -3295,7 +3330,12 @@ function renderTardeResponses() {
                 </div>
             </div>
             <p class="text-sm text-gray-300 mt-2 line-clamp-2">${esc(r.solution || '')}</p>
-            ${(r.presentMembers||[]).length ? `<p style="font-size:11px;color:#8b949e;margin-top:3px;">👥 ${r.presentMembers.length} presentes</p>` : ''}
+            <div class="flex items-center gap-3 flex-wrap" style="margin-top:4px;">
+                ${(r.presentMembers||[]).length ? `<p style="font-size:11px;color:#8b949e;">👥 ${r.presentMembers.length} presentes</p>` : ''}
+                ${r.timeSeconds ? `<p style="font-size:11px;color:#8b949e;">⏱️ ${_fmtTardeTime(r.timeSeconds)}</p>` : ''}
+                ${r.hintsUsed !== undefined ? `<p style="font-size:11px;color:#8b949e;">💡 ${r.hintsUsed} pista${r.hintsUsed===1?'':'s'}</p>` : ''}
+                ${r.wrongAttempts ? `<p style="font-size:11px;color:#8b949e;">❌ ${r.wrongAttempts} fallo${r.wrongAttempts===1?'':'s'}</p>` : ''}
+            </div>
             ${r.comment ? `<p style="font-size:11px;color:#8b949e;margin-top:3px;">💬 ${esc(r.comment)}</p>` : ''}
         </div>`;
     }).join('');
@@ -3365,6 +3405,20 @@ function openTardeReview(row) {
             <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Miembros presentes</p>
             <div style="display:flex;flex-wrap:wrap;gap:4px;">${(r.presentMembers||[]).map(m=>`<code style="background:#21262d;padding:2px 6px;border-radius:4px;font-size:11px;">${esc(m)}</code>`).join('')}</div>
         </div>` : ''}
+        <div class="grid grid-cols-3 gap-3">
+            <div style="background:#0d1117;border-radius:8px;padding:10px;text-align:center;">
+                <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;">Tiempo</p>
+                <p class="text-sm text-white font-bold">${_fmtTardeTime(r.timeSeconds||0)}</p>
+            </div>
+            <div style="background:#0d1117;border-radius:8px;padding:10px;text-align:center;">
+                <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;">Pistas usadas</p>
+                <p class="text-sm text-white font-bold">${r.hintsUsed ?? 0}</p>
+            </div>
+            <div style="background:#0d1117;border-radius:8px;padding:10px;text-align:center;">
+                <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;">Intentos fallidos</p>
+                <p class="text-sm text-white font-bold">${r.wrongAttempts ?? 0}</p>
+            </div>
+        </div>
     `;
 
     document.getElementById('tarde-review-btns-pending').classList.toggle('hidden', isMarked);
@@ -3416,6 +3470,95 @@ document.getElementById('tarde-wrong-remark-btn')   .addEventListener('click', (
 document.getElementById('tarde-remark-btn')         .addEventListener('click', () => {
     document.getElementById('tarde-review-btns-remark').classList.remove('hidden');
 });
+
+// ── TARDE: mini-podio por misterio ───────────────────────────────────────────
+
+document.getElementById('tarde-mini-podio-btn').addEventListener('click', async () => {
+    const mysteryId = document.getElementById('tarde-filter-misterio').value.trim();
+    if (!mysteryId) { toast('Escribe o elige un misterio en el filtro primero', false); return; }
+
+    const title = mysteryTitleMap[mysteryId] || mysteryId;
+    document.getElementById('tarde-podio-title').textContent = `🏆 Mini-podio — ${title}`;
+    document.getElementById('tarde-podio-content').innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:20px">⏳ Cargando…</p>';
+    document.getElementById('tarde-podio-modal').classList.remove('hidden');
+
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getTardeMysteryPodio&mysteryId=${encodeURIComponent(mysteryId)}`);
+        const data = await res.json();
+        if (data.error) { document.getElementById('tarde-podio-content').innerHTML = `<p style="color:#f85149">${esc(data.error)}</p>`; return; }
+        document.getElementById('tarde-podio-content').innerHTML = _renderTardeMiniPodioBlock('⚡ Por puntos', data.byPoints, e => `${e.points} pts`)
+            + _renderTardeMiniPodioBlock('⏱️ Por tiempo', data.byTime, e => _fmtTardeTime(e.timeSeconds))
+            + _renderTardeMiniPodioBlock('💡 Por pistas usadas', data.byHints, e => `${e.hints} pista${e.hints===1?'':'s'}`);
+    } catch(e) {
+        document.getElementById('tarde-podio-content').innerHTML = `<p style="color:#f85149">Error: ${esc(e.message)}</p>`;
+    }
+});
+
+function _renderTardeMiniPodioBlock(label, entries, fmt) {
+    if (!entries || !entries.length) return `<div><p style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:6px">${label}</p><p style="color:#8b949e;font-size:12px">Sin datos.</p></div>`;
+    const medals = ['🥇','🥈','🥉'];
+    return `<div>
+        <p style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:6px">${label}</p>
+        <div style="display:flex;flex-direction:column;gap:4px">
+            ${entries.slice(0,5).map((e,i) => `
+                <div style="display:flex;justify-content:space-between;background:#0d1117;border-radius:6px;padding:6px 10px;font-size:12px">
+                    <span>${i<3?medals[i]:`#${i+1}`} ${esc((e.teamId||'').substring(0,20))}</span>
+                    <span style="font-weight:700;color:#4ade80">${fmt(e)}</span>
+                </div>`).join('')}
+        </div>
+    </div>`;
+}
+
+// ── TARDE: sesiones activas ───────────────────────────────────────────────────
+
+let allTardeSessions = [];
+
+document.getElementById('load-tarde-sesiones-btn').addEventListener('click', loadTardeSesiones);
+
+async function loadTardeSesiones() {
+    const token = adminToken();
+    const listEl = document.getElementById('tarde-sesiones-list');
+    listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">⏳ Cargando…</p>';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getAllActiveTardeSessions&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (!Array.isArray(data)) { listEl.innerHTML = `<p style="color:#f85149">${esc(data.error||'Error')}</p>`; return; }
+        allTardeSessions = data;
+        renderTardeSesiones();
+        toast('✅ ' + data.length + ' sesión(es) activa(s) cargadas');
+    } catch(e) { listEl.innerHTML = `<p style="color:#f85149">Error: ${esc(e.message)}</p>`; }
+}
+
+function renderTardeSesiones() {
+    const listEl = document.getElementById('tarde-sesiones-list');
+    document.getElementById('tarde-sesiones-count').textContent = allTardeSessions.length + ' activa(s)';
+    if (!allTardeSessions.length) { listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">No hay sesiones activas ahora mismo.</p>'; return; }
+
+    listEl.innerHTML = allTardeSessions.map(s => {
+        const started = (() => { try { return new Date(s.startTime).toLocaleString('es-ES'); } catch { return s.startTime; } })();
+        return `<div class="row-item px-4 py-4">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                    <span class="text-sm font-bold text-white">🌆 ${esc((s.teamId||'').substring(0,24))}</span>
+                    <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#fbbf24;margin-left:6px;">${esc(mysteryTitleMap[s.mysteryId] || s.mysteryId || '—')}</span>
+                    <p style="font-size:11px;color:#8b949e;margin-top:4px;">Empezada: ${esc(started)} · 👥 ${(s.presentMembers||[]).length} presentes</p>
+                </div>
+                <button class="btn btn-red" style="font-size:11px;padding:5px 10px;" onclick="_adminCancelTardeSession('${s.sessionId}')">✕ Cancelar sesión</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function _adminCancelTardeSession(sessionId) {
+    if (!confirm('Al cancelar esta sesión, NINGUNO de los presentes en ella podrá volver a intentar este misterio (para evitar que hagan trampas viendo pistas). ¿Seguro que quieres cancelarla?')) return;
+    const token = adminToken();
+    try {
+        const data = await adminPost({ action: 'abandonTardeSession', sessionId, userPubId: '', token });
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        toast('✅ Sesión cancelada');
+        loadTardeSesiones();
+    } catch(e) { toast('Error: ' + e.message, false); }
+}
 
 // ── Teams management ─────────────────────────────────────────────────────────
 
