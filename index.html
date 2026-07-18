@@ -3169,9 +3169,21 @@ function updateNotifPreview() {
                 <h3 style="font-size:15px;font-weight:700;color:#e6edf3">🌆 Invitar a un equipo</h3>
                 <button onclick="closeInviteToTeamModal()" style="background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer">✕</button>
             </div>
-            <p style="font-size:12px;color:#8b949e;margin-bottom:12px;">Invitando a: <strong id="ait-user-name" style="color:#fbbf24"></strong></p>
-            <label style="font-size:11px;color:#8b949e;text-transform:uppercase;font-weight:700;display:block;margin-bottom:6px;">Equipo</label>
-            <select id="ait-team-select" style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px;color:#e6edf3;margin-bottom:16px;"></select>
+
+            <div id="ait-user-fixed" style="display:none;font-size:12px;color:#8b949e;margin-bottom:12px;">Invitando a: <strong id="ait-user-name" style="color:#fbbf24"></strong></div>
+            <div id="ait-user-search-wrap" style="display:none;margin-bottom:14px;">
+                <label style="font-size:11px;color:#8b949e;text-transform:uppercase;font-weight:700;display:block;margin-bottom:6px;">Usuario a invitar</label>
+                <input id="ait-user-search" type="text" list="ait-users-datalist" placeholder="Escribe un nombre o ID público…"
+                    style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px;color:#e6edf3;">
+                <datalist id="ait-users-datalist"></datalist>
+            </div>
+
+            <div id="ait-team-fixed" style="display:none;font-size:12px;color:#8b949e;margin-bottom:12px;">Equipo: <strong id="ait-team-name-fixed" style="color:#fbbf24"></strong></div>
+            <div id="ait-team-select-wrap" style="display:none;margin-bottom:16px;">
+                <label style="font-size:11px;color:#8b949e;text-transform:uppercase;font-weight:700;display:block;margin-bottom:6px;">Equipo</label>
+                <select id="ait-team-select" style="width:100%;background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px;color:#e6edf3;"></select>
+            </div>
+
             <button class="btn btn-blue" style="width:100%;" id="ait-send-btn">Enviar invitación</button>
             <p id="ait-error" style="color:#f85149;font-size:12px;text-align:center;margin-top:10px;display:none;"></p>
         </div>
@@ -3567,24 +3579,66 @@ function renderTardeSesiones() {
     }).join('');
 }
 
-async function openInviteToTeamModal(pubId, name) {
-    document.getElementById('ait-user-name').textContent = name || pubId;
+async function openInviteToTeamModal(pubId, name, presetTeamId) {
     document.getElementById('ait-error').style.display = 'none';
-    const sel = document.getElementById('ait-team-select');
-    sel.innerHTML = '<option>Cargando…</option>';
     document.getElementById('admin-invite-team-modal').style.display = 'flex';
 
-    if (!allAdminTeams.length) await loadAdminTeams();
-    if (!allAdminTeams.length) { sel.innerHTML = '<option>No hay equipos creados</option>'; return; }
-    sel.innerHTML = allAdminTeams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+    const userFixedEl   = document.getElementById('ait-user-fixed');
+    const userSearchWrap = document.getElementById('ait-user-search-wrap');
+    const teamFixedEl   = document.getElementById('ait-team-fixed');
+    const teamSelectWrap = document.getElementById('ait-team-select-wrap');
+
+    if (pubId) {
+        // Venimos desde Usuarios: el usuario ya está fijado, hay que elegir el equipo
+        userFixedEl.style.display = 'block';
+        document.getElementById('ait-user-name').textContent = name || pubId;
+        userSearchWrap.style.display = 'none';
+
+        teamFixedEl.style.display = 'none';
+        teamSelectWrap.style.display = 'block';
+        const sel = document.getElementById('ait-team-select');
+        sel.innerHTML = '<option>Cargando…</option>';
+        if (!allAdminTeams.length) await loadAdminTeams();
+        sel.innerHTML = allAdminTeams.length
+            ? allAdminTeams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')
+            : '<option value="">No hay equipos creados</option>';
+    } else {
+        // Venimos desde Equipos: el equipo ya está fijado, hay que buscar al usuario
+        teamFixedEl.style.display = 'block';
+        const team = allAdminTeams.find(t => t.id === presetTeamId);
+        document.getElementById('ait-team-name-fixed').textContent = team ? team.name : presetTeamId;
+        teamSelectWrap.style.display = 'none';
+
+        userFixedEl.style.display = 'none';
+        userSearchWrap.style.display = 'block';
+        document.getElementById('ait-user-search').value = '';
+        if (!allUsers.length) await loadUsers();
+        document.getElementById('ait-users-datalist').innerHTML = allUsers
+            .map(u => `<option value="${esc(u.nombre || u.idPublico)}" data-id="${esc(u.idPublico)}">${esc(u.idPublico)}</option>`).join('');
+    }
 
     document.getElementById('ait-send-btn').onclick = async () => {
         const btn = document.getElementById('ait-send-btn');
         const errEl = document.getElementById('ait-error');
         errEl.style.display = 'none';
+
+        let invitedPubId = pubId;
+        let teamId = presetTeamId;
+
+        if (!invitedPubId) {
+            const typed = document.getElementById('ait-user-search').value.trim();
+            const match = allUsers.find(u => u.nombre === typed || u.idPublico === typed);
+            invitedPubId = match ? match.idPublico : typed;
+            if (!invitedPubId) { errEl.textContent = 'Escribe o elige un usuario.'; errEl.style.display = 'block'; return; }
+        }
+        if (!teamId) {
+            teamId = document.getElementById('ait-team-select').value;
+            if (!teamId) { errEl.textContent = 'Elige un equipo.'; errEl.style.display = 'block'; return; }
+        }
+
         btn.disabled = true; btn.textContent = 'Enviando…';
         try {
-            const data = await adminPost({ action: 'adminInviteToTeam', teamId: sel.value, invitedPubId: pubId, token: adminToken() });
+            const data = await adminPost({ action: 'adminInviteToTeam', teamId, invitedPubId, token: adminToken() });
             btn.disabled = false; btn.textContent = 'Enviar invitación';
             if (data.error) { errEl.textContent = data.error; errEl.style.display = 'block'; return; }
             toast('✅ Invitación enviada');
@@ -3644,6 +3698,7 @@ function renderAdminTeams() {
                     <code style="background:#21262d;color:#d2a8ff;font-size:12px;padding:2px 8px;border-radius:6px;margin-left:8px;letter-spacing:0.15em">${esc(t.code||'—')}</code>
                 </div>
                 <div style="display:flex;gap:6px">
+                    <button onclick="openInviteToTeamModal(null,null,'${t.id}')" style="background:#238636;border:none;color:#fff;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:600">🤝 Invitar</button>
                     <button onclick="openEditTeamModal('${t.id}')" style="background:#1f6feb;border:none;color:#fff;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:600">Editar</button>
                     <button onclick="adminDeleteTeam('${t.id}','${esc(t.name)}')" style="background:#da3633;border:none;color:#fff;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:600">Eliminar</button>
                 </div>
