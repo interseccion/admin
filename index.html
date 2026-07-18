@@ -3225,10 +3225,18 @@ function _tardeSt(r) {
 }
 
 function _fmtTardeTime(seconds) {
-    const s = Math.round(seconds || 0);
-    const mm = Math.floor(s / 60);
-    const ss = s % 60;
-    return `${mm}:${String(ss).padStart(2,'0')}`;
+    let s = Math.round(seconds || 0);
+    const days = Math.floor(s / 86400); s -= days * 86400;
+    const hours = Math.floor(s / 3600); s -= hours * 3600;
+    const minutes = Math.floor(s / 60); s -= minutes * 60;
+    const secs = s;
+
+    const parts = [];
+    if (days)    parts.push(`${days}d`);
+    if (hours)   parts.push(`${hours}h`);
+    if (minutes) parts.push(`${minutes}min`);
+    if (secs || parts.length === 0) parts.push(`${secs}s`);
+    return parts.join(' ');
 }
 
 // ── TARDE: variables ─────────────────────────────────────────────────────────
@@ -3516,7 +3524,7 @@ document.getElementById('tarde-mini-podio-btn').addEventListener('click', async 
         const res  = await fetch(`${APPS_SCRIPT_URL}?action=getTardeMysteryPodio&mysteryId=${encodeURIComponent(mysteryId)}`);
         const data = await res.json();
         if (data.error) { document.getElementById('tarde-podio-content').innerHTML = `<p style="color:#f85149">${esc(data.error)}</p>`; return; }
-        document.getElementById('tarde-podio-content').innerHTML = _renderTardeMiniPodioBlock('⚡ Por puntos', data.byPoints, e => `${e.points} pts`)
+        document.getElementById('tarde-podio-content').innerHTML = _renderTardeMiniPodioBlock('⚡ Por puntos', data.byPoints, e => `${Math.round(e.points)} pts`)
             + _renderTardeMiniPodioBlock('⏱️ Por tiempo', data.byTime, e => _fmtTardeTime(e.timeSeconds))
             + _renderTardeMiniPodioBlock('💡 Por pistas usadas', data.byHints, e => `${e.hints} pista${e.hints===1?'':'s'}`);
     } catch(e) {
