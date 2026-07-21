@@ -3373,7 +3373,9 @@ function renderTardeResponses() {
                 ${r.timeSeconds ? `<p style="font-size:11px;color:#8b949e;">⏱️ ${_fmtTardeTime(r.timeSeconds)}</p>` : ''}
                 ${r.hintsUsed !== undefined ? `<p style="font-size:11px;color:#8b949e;">💡 ${r.hintsUsed} pista${r.hintsUsed===1?'':'s'}</p>` : ''}
                 ${r.wrongAttempts ? `<p style="font-size:11px;color:#8b949e;">❌ ${r.wrongAttempts} fallo${r.wrongAttempts===1?'':'s'}</p>` : ''}
+                ${r.rating ? `<p style="font-size:11px;color:#f0e68c;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</p>` : ''}
             </div>
+            ${r.ratingComment ? `<p style="font-size:11px;color:#8b949e;margin-top:3px;">📝 ${esc(r.ratingComment)}</p>` : ''}
             ${r.comment ? `<p style="font-size:11px;color:#8b949e;margin-top:3px;">💬 ${esc(r.comment)}</p>` : ''}
         </div>`;
     }).join('');
