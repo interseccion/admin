@@ -663,18 +663,31 @@ async function adminPost(body) {
     return res.json();
 }
 const GAMES_INDEX_PATH = 'games/index.json';
+const TARDE_INDEX_PATH = 'tarde/index.json';
 
 // Mapa id → título de misterio (cargado al inicio)
 let mysteryTitleMap = {};
 
 async function loadMysteryTitles() {
-    // 1) Intentar desde los JSON locales
+    // 1) Misterios normales
     try {
         const indexRes = await fetch(`${GAMES_INDEX_PATH}?v=${Date.now()}`);
         if (indexRes.ok) {
             const files = await indexRes.json();
             const results = await Promise.all(
                 files.map(f => fetch(`games/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
+            );
+            results.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
+        }
+    } catch(e) { /* silencioso */ }
+
+    // 1b) Misterios de tarde (viven en tarde/, no en games/)
+    try {
+        const indexRes = await fetch(`${TARDE_INDEX_PATH}?v=${Date.now()}`);
+        if (indexRes.ok) {
+            const files = await indexRes.json();
+            const results = await Promise.all(
+                files.map(f => fetch(`tarde/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
             );
             results.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
         }
