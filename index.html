@@ -95,6 +95,7 @@
     <button class="tab-btn" data-tab="tarde-respuestas" style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Respuestas</button>
     <button class="tab-btn" data-tab="tarde-sesiones"    style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Sesiones</button>
     <button class="tab-btn" data-tab="tarde-equipos"    style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Equipos</button>
+    <button class="tab-btn" data-tab="tarde-opiniones"  style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Opiniones</button>
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
@@ -669,7 +670,7 @@ const TARDE_INDEX_PATH = 'tarde/index.json';
 let mysteryTitleMap = {};
 
 async function loadMysteryTitles() {
-    // 1) Misterios normales
+    // 1) Intentar desde los JSON locales (misterios normales, ruta games/)
     try {
         const indexRes = await fetch(`${GAMES_INDEX_PATH}?v=${Date.now()}`);
         if (indexRes.ok) {
@@ -681,15 +682,15 @@ async function loadMysteryTitles() {
         }
     } catch(e) { /* silencioso */ }
 
-    // 1b) Misterios de tarde (viven en tarde/, no en games/)
+    // 1b) Misterios de tarde (ruta tarde/, no games/)
     try {
-        const indexRes = await fetch(`${TARDE_INDEX_PATH}?v=${Date.now()}`);
-        if (indexRes.ok) {
-            const files = await indexRes.json();
-            const results = await Promise.all(
-                files.map(f => fetch(`tarde/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
+        const indexResTarde = await fetch(`${TARDE_INDEX_PATH}?v=${Date.now()}`);
+        if (indexResTarde.ok) {
+            const filesTarde = await indexResTarde.json();
+            const resultsTarde = await Promise.all(
+                filesTarde.map(f => fetch(`tarde/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
             );
-            results.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
+            resultsTarde.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
         }
     } catch(e) { /* silencioso */ }
 
@@ -751,7 +752,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias','tarde-respuestas','tarde-sesiones','tarde-equipos'].forEach(t => {
+        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias','tarde-respuestas','tarde-sesiones','tarde-equipos','tarde-opiniones'].forEach(t => {
             const el = document.getElementById('tab-' + t);
             if (el) el.classList.toggle('hidden', t !== btn.dataset.tab);
         });
@@ -3124,6 +3125,21 @@ function updateNotifPreview() {
 </div>
 
 <!-- ─────────────────────────────────────────────────────────────── -->
+<!-- TAB: TARDE — OPINIONES                                          -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<div id="tab-tarde-opiniones" class="hidden">
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <button class="btn btn-blue" id="load-tarde-opiniones-btn">🌆 Cargar opiniones</button>
+        <span style="font-size:12px;color:#8b949e;" id="tarde-opiniones-count"></span>
+    </div>
+    <div class="card overflow-hidden">
+        <div id="tarde-opiniones-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar opiniones" para verlas todas en un mismo sitio.</p>
+        </div>
+    </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
 <!-- TAB: TARDE — SESIONES ACTIVAS                                   -->
 <!-- ─────────────────────────────────────────────────────────────── -->
 <div id="tab-tarde-sesiones" class="hidden">
@@ -3402,6 +3418,63 @@ function renderTardeResponses() {
     }
 }
 
+// ── TARDE: OPINIONES (todas en un mismo sitio) ────────────────────────────────
+document.getElementById('load-tarde-opiniones-btn').addEventListener('click', async () => {
+    const token = adminToken();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    const list = document.getElementById('tarde-opiniones-list');
+    list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
+    try {
+        if (!Object.keys(mysteryTitleMap).length) await loadMysteryTitles();
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getTardeResponses&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (!Array.isArray(data)) { toast('Error: ' + (data.error || 'desconocido'), false); return; }
+        allTardeResponses = data;
+        renderTardeOpiniones();
+        toast('✅ Opiniones de tarde cargadas');
+    } catch(e) { toast('Error: ' + e.message, false); }
+});
+
+function renderTardeOpiniones() {
+    const list = document.getElementById('tarde-opiniones-list');
+    const opiniones = allTardeResponses
+        .filter(r => r.rating || r.ratingComment)
+        .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+
+    document.getElementById('tarde-opiniones-count').textContent =
+        opiniones.length + ' opinión' + (opiniones.length === 1 ? '' : 'es');
+
+    if (!opiniones.length) {
+        list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin opiniones todavía 📭</p>';
+        return;
+    }
+
+    const withStars = opiniones.filter(r => r.rating);
+    const avgRating = withStars.length
+        ? (withStars.reduce((s, r) => s + parseInt(r.rating), 0) / withStars.length).toFixed(1)
+        : null;
+
+    const summaryHTML = `<div style="background:#0d1117;padding:16px 20px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;border-bottom:1px solid #21262d;">
+        ${avgRating ? `<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:22px;color:#eab308;">★</span><span style="font-size:18px;font-weight:700;color:#e6edf3;">${avgRating}</span><span style="font-size:12px;color:#8b949e;">/ 5 (${withStars.length} votos)</span></div>` : ''}
+    </div>`;
+
+    list.innerHTML = summaryHTML + opiniones.map(r => {
+        const fecha = (() => { try { return new Date(r.timestamp).toLocaleDateString('es',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); } catch { return r.timestamp||''; } })();
+        const starsHTML = r.rating ? `<span style="color:#f0e68c;font-size:13px;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span>` : '';
+        return `<div class="row-item clickable-row px-4 py-3" onclick="openTardeReview(${r.row})">
+            <div class="flex items-start justify-between gap-3 flex-wrap mb-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-sm font-bold text-white">🌆 ${esc((r.teamId||'—').substring(0,24))}</span>
+                    <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#fbbf24;">${esc(mysteryTitleMap[r.mysteryId] || r.mysteryId || '—')}</span>
+                    ${starsHTML}
+                </div>
+                <span style="font-size:11px;color:#6b7280;">${fecha}</span>
+            </div>
+            ${r.ratingComment ? `<p class="text-sm text-gray-300" style="white-space:pre-line;">${esc(r.ratingComment)}</p>` : '<p style="font-size:12px;color:#6b7280;font-style:italic;">Sin comentario, solo valoración.</p>'}
+        </div>`;
+    }).join('');
+}
+
 // ── TARDE: filtros + sort event listeners ────────────────────────────────────
 ['tarde-filter-misterio','tarde-filter-estado','tarde-filter-team'].forEach(id => {
     document.getElementById(id).addEventListener('input',  () => { tardeRespPage=1; renderTardeResponses(); });
@@ -3457,6 +3530,11 @@ function openTardeReview(row) {
         ${(r.presentMembers||[]).length ? `<div style="background:#0d1117;border-radius:8px;padding:12px;">
             <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Miembros presentes</p>
             <div style="display:flex;flex-wrap:wrap;gap:4px;">${(r.presentMembers||[]).map(m=>`<code style="background:#21262d;padding:2px 6px;border-radius:4px;font-size:11px;">${esc(m)}</code>`).join('')}</div>
+        </div>` : ''}
+        ${(r.rating || r.ratingComment) ? `<div style="background:#0d1117;border-radius:8px;padding:12px;">
+            <p style="font-size:10px;color:#8b949e;text-transform:uppercase;font-weight:700;margin-bottom:6px;">Opinión del equipo</p>
+            ${r.rating ? `<p style="font-size:13px;color:#f0e68c;margin-bottom:4px;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</p>` : ''}
+            ${r.ratingComment ? `<p class="text-sm text-gray-300">${esc(r.ratingComment)}</p>` : ''}
         </div>` : ''}
         <div class="grid grid-cols-3 gap-3">
             <div style="background:#0d1117;border-radius:8px;padding:10px;text-align:center;">
