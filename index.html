@@ -96,6 +96,8 @@
     <button class="tab-btn" data-tab="tarde-sesiones"    style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Sesiones</button>
     <button class="tab-btn" data-tab="tarde-equipos"    style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Equipos</button>
     <button class="tab-btn" data-tab="tarde-opiniones"  style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Opiniones</button>
+    <button class="tab-btn" data-tab="escape-respuestas" style="border-color:#7c3aed;color:#c4b5fd">🔐 Escape: Respuestas</button>
+    <button class="tab-btn" data-tab="escape-sesiones"   style="border-color:#7c3aed;color:#c4b5fd">🔐 Escape: Sesiones activas</button>
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
@@ -665,6 +667,7 @@ async function adminPost(body) {
 }
 const GAMES_INDEX_PATH = 'games/index.json';
 const TARDE_INDEX_PATH = 'tarde/index.json';
+const ESCAPE_INDEX_PATH = 'escape/index.json';
 
 // Mapa id → título de misterio (cargado al inicio)
 let mysteryTitleMap = {};
@@ -682,6 +685,17 @@ async function loadMysteryTitles() {
         }
     } catch(e) { /* silencioso */ }
 
+    // 1c) Escape rooms (ruta escape/)
+    try {
+        const indexResEscape = await fetch(`${ESCAPE_INDEX_PATH}?v=${Date.now()}`);
+        if (indexResEscape.ok) {
+            const filesEscape = await indexResEscape.json();
+            const resultsEscape = await Promise.all(
+                filesEscape.map(f => fetch(`escape/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
+            );
+            resultsEscape.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
+        }
+    } catch(e) { /* silencioso */ }
     // 1b) Misterios de tarde (ruta tarde/, no games/)
     try {
         const indexResTarde = await fetch(`${TARDE_INDEX_PATH}?v=${Date.now()}`);
@@ -752,7 +766,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias','tarde-respuestas','tarde-sesiones','tarde-equipos','tarde-opiniones'].forEach(t => {
+        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias','tarde-respuestas','tarde-sesiones','tarde-equipos','tarde-opiniones','escape-respuestas','escape-sesiones'].forEach(t => {
             const el = document.getElementById('tab-' + t);
             if (el) el.classList.toggle('hidden', t !== btn.dataset.tab);
         });
@@ -3140,6 +3154,51 @@ function updateNotifPreview() {
 </div>
 
 <!-- ─────────────────────────────────────────────────────────────── -->
+<!-- TAB: ESCAPE — RESPUESTAS (partidas completadas)                 -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<div id="tab-escape-respuestas" class="hidden">
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <button class="btn btn-blue" id="load-escape-resp-btn">🔐 Cargar</button>
+        <button class="btn btn-gray" id="escape-mini-podio-btn" style="font-size:11px;padding:5px 10px;">🏆 Mini-podio del escape room filtrado</button>
+        <input type="text" id="escape-filter-mystery" placeholder="🔍 Escape room..." style="width:200px;" list="escape-autocomplete-mysteries" autocomplete="off">
+        <datalist id="escape-autocomplete-mysteries"></datalist>
+        <span style="font-size:12px;color:#8b949e;" id="escape-resp-count"></span>
+    </div>
+    <p style="color:#8b949e;font-size:12px;margin:-8px 0 12px 4px;">Las partidas de escape room se puntúan solas (por código) — aquí solo se ven ya completadas, no hace falta revisarlas una a una.</p>
+    <div class="card overflow-hidden">
+        <div id="escape-responses-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar" para ver las partidas completadas.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Mini-podio por escape room -->
+<div id="escape-podio-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-white" id="escape-podio-title">Mini-podio</h3>
+            <button onclick="document.getElementById('escape-podio-modal').classList.add('hidden')" class="text-gray-400 hover:text-white text-xl leading-none">×</button>
+        </div>
+        <div id="escape-podio-content" class="space-y-4"></div>
+    </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<!-- TAB: ESCAPE — SESIONES ACTIVAS                                  -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<div id="tab-escape-sesiones" class="hidden">
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <button class="btn btn-blue" id="load-escape-sesiones-btn">🔐 Cargar sesiones activas</button>
+        <span style="font-size:12px;color:#8b949e;" id="escape-sesiones-count"></span>
+    </div>
+    <div class="card overflow-hidden">
+        <div id="escape-sesiones-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar sesiones activas" para ver las partidas en curso.</p>
+        </div>
+    </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
 <!-- TAB: TARDE — SESIONES ACTIVAS                                   -->
 <!-- ─────────────────────────────────────────────────────────────── -->
 <div id="tab-tarde-sesiones" class="hidden">
@@ -3763,6 +3822,133 @@ async function _adminCancelTardeSession(sessionId) {
         if (data.error) { toast('Error: ' + data.error, false); return; }
         toast('✅ Sesión cancelada');
         loadTardeSesiones();
+    } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+// ── ESCAPE ROOMS: respuestas (partidas completadas, se puntúan solas) ────────
+let allEscapeResponses = [];
+
+document.getElementById('load-escape-resp-btn').addEventListener('click', loadEscapeResponses);
+
+async function loadEscapeResponses() {
+    const token = adminToken();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    document.getElementById('escape-responses-list').innerHTML =
+        '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
+    try {
+        if (!Object.keys(mysteryTitleMap).length) await loadMysteryTitles();
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getEscapeResponses&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (!Array.isArray(data)) { toast('Error: ' + (data.error || 'desconocido'), false); return; }
+        allEscapeResponses = data;
+        const dl = document.getElementById('escape-autocomplete-mysteries');
+        const ids = [...new Set(allEscapeResponses.map(r => r.gameId).filter(Boolean))].sort();
+        dl.innerHTML = ids.map(id => `<option value="${esc(id)}">${esc(mysteryTitleMap[id] || id)}</option>`).join('');
+        renderEscapeResponses();
+        toast('✅ ' + data.length + ' partidas de escape room cargadas');
+    } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+document.getElementById('escape-filter-mystery').addEventListener('input', renderEscapeResponses);
+
+function renderEscapeResponses() {
+    const listEl = document.getElementById('escape-responses-list');
+    const filterVal = document.getElementById('escape-filter-mystery').value.trim().toLowerCase();
+    const filtered = allEscapeResponses.filter(r => {
+        if (!filterVal) return true;
+        const title = (mysteryTitleMap[r.gameId] || r.gameId || '').toLowerCase();
+        return title.includes(filterVal) || (r.gameId||'').toLowerCase().includes(filterVal);
+    }).sort((a,b) => new Date(b.timestamp||0) - new Date(a.timestamp||0));
+
+    document.getElementById('escape-resp-count').textContent = filtered.length + ' partida(s)';
+    if (!filtered.length) { listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">Sin partidas completadas todavía.</p>'; return; }
+
+    listEl.innerHTML = filtered.map(r => {
+        const fecha = (() => { try { return new Date(r.timestamp).toLocaleString('es-ES'); } catch { return r.timestamp||''; } })();
+        const starsHTML = r.rating ? `<span style="color:#f0e68c;font-size:12px;">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span>` : '';
+        return `<div class="row-item px-4 py-4">
+            <div class="flex items-start justify-between gap-4 flex-wrap mb-1">
+                <div>
+                    <span class="text-sm font-bold text-white">🔐 ${esc(String(r.teamId||'—').substring(0,24))}</span>
+                    <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#c4b5fd;margin-left:6px;">${esc(mysteryTitleMap[r.gameId] || r.gameId || '—')}</span>
+                    ${starsHTML}
+                </div>
+                <span style="font-size:11px;color:#6b7280;">${esc(fecha)}</span>
+            </div>
+            <p style="font-size:12px;color:#8b949e;">⚡ ${Math.round(r.points||0)} pts · ⏱️ ${_fmtTardeTime(r.elapsedSeconds||0)} · ❌ ${r.wrongRoomAttempts||0} fallo(s) de sala · ${r.wrongFinalAttempts||0} fallo(s) de código final ${r.timeUp ? '· <span style="color:#f0b429">⏱️ se acabó el tiempo</span>' : ''}</p>
+            ${r.ratingComment ? `<p style="font-size:12px;color:#d1d5db;margin-top:4px;">📝 ${esc(r.ratingComment)}</p>` : ''}
+        </div>`;
+    }).join('');
+}
+
+document.getElementById('escape-mini-podio-btn').addEventListener('click', async () => {
+    const gameId = document.getElementById('escape-filter-mystery').value.trim();
+    if (!gameId) { toast('Escribe o elige un escape room en el filtro primero', false); return; }
+
+    const title = mysteryTitleMap[gameId] || gameId;
+    document.getElementById('escape-podio-title').textContent = `🏆 Mini-podio — ${title}`;
+    document.getElementById('escape-podio-content').innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:20px">⏳ Cargando…</p>';
+    document.getElementById('escape-podio-modal').classList.remove('hidden');
+
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getEscapeMysteryPodio&mysteryId=${encodeURIComponent(gameId)}`);
+        const data = await res.json();
+        if (data.error) { document.getElementById('escape-podio-content').innerHTML = `<p style="color:#f85149">${esc(data.error)}</p>`; return; }
+        document.getElementById('escape-podio-content').innerHTML = _renderTardeMiniPodioBlock('⚡ Por puntos', data.byPoints, e => `${Math.round(e.points)} pts`)
+            + _renderTardeMiniPodioBlock('⏱️ Por tiempo', data.byTime, e => _fmtTardeTime(e.timeSeconds));
+    } catch(e) {
+        document.getElementById('escape-podio-content').innerHTML = `<p style="color:#f85149">Error: ${esc(e.message)}</p>`;
+    }
+});
+
+// ── ESCAPE ROOMS: sesiones activas ───────────────────────────────────────────
+let allEscapeSessions = [];
+
+document.getElementById('load-escape-sesiones-btn').addEventListener('click', loadEscapeSesiones);
+
+async function loadEscapeSesiones() {
+    const token = adminToken();
+    const listEl = document.getElementById('escape-sesiones-list');
+    listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">⏳ Cargando…</p>';
+    try {
+        if (!Object.keys(mysteryTitleMap).length) await loadMysteryTitles();
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getAllActiveEscapeSessions&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (!Array.isArray(data)) { listEl.innerHTML = `<p style="color:#f85149">${esc(data.error||'Error')}</p>`; return; }
+        allEscapeSessions = data;
+        renderEscapeSesiones();
+        toast('✅ ' + data.length + ' sesión(es) activa(s) cargadas');
+    } catch(e) { listEl.innerHTML = `<p style="color:#f85149">Error: ${esc(e.message)}</p>`; }
+}
+
+function renderEscapeSesiones() {
+    const listEl = document.getElementById('escape-sesiones-list');
+    document.getElementById('escape-sesiones-count').textContent = allEscapeSessions.length + ' activa(s)';
+    if (!allEscapeSessions.length) { listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">No hay sesiones activas ahora mismo.</p>'; return; }
+
+    listEl.innerHTML = allEscapeSessions.map(s => {
+        const started = (() => { try { return new Date(s.startTime).toLocaleString('es-ES'); } catch { return s.startTime; } })();
+        return `<div class="row-item px-4 py-4">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                    <span class="text-sm font-bold text-white">🔐 ${esc(String(s.teamId||'').substring(0,24))}</span>
+                    <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#c4b5fd;margin-left:6px;">${esc(mysteryTitleMap[s.gameId] || s.gameId || '—')}</span>
+                    <p style="font-size:11px;color:#8b949e;margin-top:4px;">Empezada: ${esc(started)} · 👥 ${(s.presentMembers||[]).length} presentes</p>
+                </div>
+                <button class="btn btn-red" style="font-size:11px;padding:5px 10px;" onclick="_adminCancelEscapeSession('${s.sessionId}')">✕ Cancelar sesión</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function _adminCancelEscapeSession(sessionId) {
+    if (!confirm('Al cancelar esta sesión, NINGUNO de los presentes en ella podrá volver a intentar este escape room. ¿Seguro que quieres cancelarla?')) return;
+    const token = adminToken();
+    try {
+        const data = await adminPost({ action: 'abandonEscapeSession', sessionId, userPubId: '', token });
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        toast('✅ Sesión cancelada');
+        loadEscapeSesiones();
     } catch(e) { toast('Error: ' + e.message, false); }
 }
 
