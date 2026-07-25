@@ -3388,7 +3388,7 @@ function renderTardeResponses() {
             <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div class="flex items-center gap-3 flex-wrap">
                     ${badge}
-                    <span class="text-sm font-bold text-white">🌆 ${esc((r.teamId||'—').substring(0,24))}</span>
+                    <span class="text-sm font-bold text-white">🌆 ${esc(String(r.teamId||'—').substring(0,24))}</span>
                     <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#fbbf24;">${esc(mysteryTitleMap[r.mysteryId] || r.mysteryId || '—')}</span>
                 </div>
                 <div class="flex items-center gap-2">
@@ -3464,7 +3464,7 @@ function renderTardeOpiniones() {
         return `<div class="row-item clickable-row px-4 py-3" onclick="openTardeReview(${r.row})">
             <div class="flex items-start justify-between gap-3 flex-wrap mb-1">
                 <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-sm font-bold text-white">🌆 ${esc((r.teamId||'—').substring(0,24))}</span>
+                    <span class="text-sm font-bold text-white">🌆 ${esc(String(r.teamId||'—').substring(0,24))}</span>
                     <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#fbbf24;">${esc(mysteryTitleMap[r.mysteryId] || r.mysteryId || '—')}</span>
                     ${starsHTML}
                 </div>
@@ -3501,7 +3501,7 @@ function openTardeReview(row) {
     const isMarked = st !== 'pending';
 
     document.getElementById('tarde-review-title').textContent =
-        `🌆 ${(r.teamId||'—').substring(0,22)} — ${esc(mysteryTitleMap[r.mysteryId] || r.mysteryId || '—')}`;
+        `🌆 ${String(r.teamId||'—').substring(0,22)} — ${esc(mysteryTitleMap[r.mysteryId] || r.mysteryId || '—')}`;
     document.getElementById('tarde-review-comment').value = r.comment || '';
 
     document.getElementById('tarde-review-content').innerHTML = `
@@ -3633,7 +3633,7 @@ function _renderTardeMiniPodioBlock(label, entries, fmt) {
         <div style="display:flex;flex-direction:column;gap:4px">
             ${entries.slice(0,5).map((e,i) => `
                 <div style="display:flex;justify-content:space-between;background:#0d1117;border-radius:6px;padding:6px 10px;font-size:12px">
-                    <span>${i<3?medals[i]:`#${i+1}`} ${esc((e.teamId||'').substring(0,20))}</span>
+                    <span>${i<3?medals[i]:`#${i+1}`} ${esc(String(e.teamId||'').substring(0,20))}</span>
                     <span style="font-weight:700;color:#4ade80">${fmt(e)}</span>
                 </div>`).join('')}
         </div>
@@ -3670,7 +3670,7 @@ function renderTardeSesiones() {
         return `<div class="row-item px-4 py-4">
             <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div>
-                    <span class="text-sm font-bold text-white">🌆 ${esc((s.teamId||'').substring(0,24))}</span>
+                    <span class="text-sm font-bold text-white">🌆 ${esc(String(s.teamId||'').substring(0,24))}</span>
                     <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:#fbbf24;margin-left:6px;">${esc(mysteryTitleMap[s.mysteryId] || s.mysteryId || '—')}</span>
                     <p style="font-size:11px;color:#8b949e;margin-top:4px;">Empezada: ${esc(started)} · 👥 ${(s.presentMembers||[]).length} presentes</p>
                 </div>
@@ -3805,12 +3805,12 @@ function renderAdminTeams() {
                 </div>
             </div>
             <div style="font-size:12px;color:#8b949e;display:grid;grid-template-columns:1fr 1fr;gap:6px">
-                <div>👑 Capitán: <code style="color:#e3b341">${esc((t.captain||'—').substring(0,16))}…</code></div>
-                <div>👥 ${t.members.length} miembro${t.members.length!==1?'s':''}</div>
-                ${t.admins.length ? `<div style="grid-column:span 2">⭐ Admins: ${t.admins.map(a=>`<code style="background:#21262d;padding:1px 5px;border-radius:4px">${esc(a.substring(0,12))}…</code>`).join(' ')}</div>` : ''}
+                <div>👑 Capitán: <code style="color:#e3b341">${esc(String(t.captain||'—').substring(0,16))}…</code></div>
+                <div>👥 ${(t.members||[]).length} miembro${(t.members||[]).length!==1?'s':''}</div>
+                ${(t.admins||[]).length ? `<div style="grid-column:span 2">⭐ Admins: ${(t.admins||[]).map(a=>`<code style="background:#21262d;padding:1px 5px;border-radius:4px">${esc(String(a).substring(0,12))}…</code>`).join(' ')}</div>` : ''}
             </div>
             <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">
-                ${t.members.map(m=>`<span style="font-family:monospace;background:#0d1117;border:1px solid #21262d;padding:2px 8px;border-radius:20px;font-size:11px;color:#8b949e">${esc(m.substring(0,12))}…</span>`).join('')}
+                ${(t.members||[]).map(m=>`<span style="font-family:monospace;background:#0d1117;border:1px solid #21262d;padding:2px 8px;border-radius:20px;font-size:11px;color:#8b949e">${esc(String(m).substring(0,12))}…</span>`).join('')}
             </div>
         </div>`).join('');
 }
