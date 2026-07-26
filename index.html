@@ -98,6 +98,7 @@
     <button class="tab-btn" data-tab="tarde-opiniones"  style="border-color:#d97706;color:#fbbf24">🌆 Tarde: Opiniones</button>
     <button class="tab-btn" data-tab="escape-respuestas" style="border-color:#7c3aed;color:#c4b5fd">🔐 Escape: Respuestas</button>
     <button class="tab-btn" data-tab="escape-sesiones"   style="border-color:#7c3aed;color:#c4b5fd">🔐 Escape: Sesiones activas</button>
+    <button class="tab-btn" data-tab="push" style="border-color:#4f46e5;color:#a5b4fc">🔔 Notificaciones Push</button>
 </div>
 
 <!-- ───────────────────────────────────────────────────────── -->
@@ -766,7 +767,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias','tarde-respuestas','tarde-sesiones','tarde-equipos','tarde-opiniones','escape-respuestas','escape-sesiones'].forEach(t => {
+        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias','tarde-respuestas','tarde-sesiones','tarde-equipos','tarde-opiniones','escape-respuestas','escape-sesiones','push'].forEach(t => {
             const el = document.getElementById('tab-' + t);
             if (el) el.classList.toggle('hidden', t !== btn.dataset.tab);
         });
@@ -3199,6 +3200,85 @@ function updateNotifPreview() {
 </div>
 
 <!-- ─────────────────────────────────────────────────────────────── -->
+<!-- TAB: NOTIFICACIONES PUSH                                        -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<div id="tab-push" class="hidden">
+
+    <div class="card p-5 mb-6">
+        <h2 style="font-size:16px;font-weight:700;color:#a5b4fc;margin-bottom:14px;">✍️ Redactar y enviar</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <div>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Título</label>
+                <input type="text" id="push-compose-title" placeholder="Ej: ¡Nuevo misterio disponible!" style="width:100%">
+            </div>
+            <div>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">URL al pulsar (opcional)</label>
+                <input type="text" id="push-compose-url" placeholder="/" style="width:100%">
+            </div>
+        </div>
+        <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Cuerpo del mensaje</label>
+        <textarea id="push-compose-body" rows="2" placeholder="Escribe aquí el mensaje..." style="width:100%;margin-bottom:12px;"></textarea>
+
+        <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">¿A quién?</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+            <select id="push-segment-type" style="min-width:180px;">
+                <option value="all">👥 Todos los suscritos</option>
+                <option value="team">🌆 Un equipo concreto</option>
+                <option value="manual">✏️ IDs concretos</option>
+            </select>
+            <select id="push-segment-team" class="hidden" style="min-width:220px;"></select>
+            <input type="text" id="push-segment-manual" class="hidden" placeholder="ID1, ID2, ID3..." style="min-width:260px;">
+            <span style="font-size:12px;color:#8b949e;" id="push-subscribers-count"></span>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-blue" id="push-send-now-btn">🚀 Enviar ahora</button>
+            <button class="btn btn-gray" id="push-load-subscribers-btn" style="font-size:12px;">🔄 Actualizar suscriptores/equipos</button>
+        </div>
+        <p id="push-send-result" class="hidden" style="font-size:12px;margin-top:10px;"></p>
+    </div>
+
+    <div class="card p-5 mb-6">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+            <h2 style="font-size:16px;font-weight:700;color:#a5b4fc;">📅 Programar campaña</h2>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <div>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Tipo de envío</label>
+                <select id="push-campaign-type" style="width:100%;">
+                    <option value="once">Una sola vez</option>
+                    <option value="weekly">Semanal, durante varias semanas</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Fecha y hora del primer envío</label>
+                <input type="datetime-local" id="push-campaign-start" style="width:100%;">
+            </div>
+        </div>
+        <div id="push-campaign-weeks-row" class="hidden" style="margin-bottom:12px;">
+            <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">¿Durante cuántas semanas?</label>
+            <input type="number" id="push-campaign-weeks" value="6" min="1" style="width:120px;">
+        </div>
+        <p style="font-size:11px;color:#6b7280;margin-bottom:14px;">Usa el título, cuerpo, URL y segmento de arriba ☝️ (la sección de "Redactar y enviar"). Esto solo guarda cuándo se debe mandar.</p>
+        <button class="btn btn-primary" id="push-schedule-btn" style="background:#4f46e5;">📌 Programar campaña</button>
+    </div>
+
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <button class="btn btn-blue" id="push-load-campaigns-btn">📋 Cargar campañas</button>
+        <button class="btn btn-gray" id="push-run-due-btn" style="font-size:11px;">▶ Comprobar ahora (forzar envío de las que tocan)</button>
+        <span style="font-size:12px;color:#8b949e;" id="push-campaigns-count"></span>
+    </div>
+    <p style="color:#8b949e;font-size:12px;margin:-8px 0 12px 4px;">
+        Recuerda: para que esto se compruebe solo cada hora, tienes que ejecutar UNA VEZ <code>setupPushCampaignTrigger()</code> desde el editor de Apps Script. El botón de arriba es solo para probar sin esperar.
+    </p>
+    <div class="card overflow-hidden">
+        <div id="push-campaigns-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar campañas" para verlas.</p>
+        </div>
+    </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
 <!-- TAB: TARDE — SESIONES ACTIVAS                                   -->
 <!-- ─────────────────────────────────────────────────────────────── -->
 <div id="tab-tarde-sesiones" class="hidden">
@@ -3951,6 +4031,179 @@ async function _adminCancelEscapeSession(sessionId) {
         loadEscapeSesiones();
     } catch(e) { toast('Error: ' + e.message, false); }
 }
+
+// ── PUSH NOTIFICATIONS: admin ────────────────────────────────────────────────
+let allPushSubscribers = [];
+let allPushTeams       = [];
+let allPushCampaigns   = [];
+
+document.getElementById('push-segment-type').addEventListener('change', () => {
+    const val = document.getElementById('push-segment-type').value;
+    document.getElementById('push-segment-team').classList.toggle('hidden', val !== 'team');
+    document.getElementById('push-segment-manual').classList.toggle('hidden', val !== 'manual');
+});
+
+document.getElementById('push-campaign-type').addEventListener('change', () => {
+    document.getElementById('push-campaign-weeks-row').classList.toggle('hidden', document.getElementById('push-campaign-type').value !== 'weekly');
+});
+
+document.getElementById('push-load-subscribers-btn').addEventListener('click', _loadPushSubscribersAndTeams);
+
+async function _loadPushSubscribersAndTeams() {
+    const token = adminToken();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    try {
+        const [subsRes, teamsRes] = await Promise.all([
+            fetch(`${APPS_SCRIPT_URL}?action=getPushSubscribers&token=${encodeURIComponent(token)}`).then(r=>r.json()),
+            fetch(`${APPS_SCRIPT_URL}?action=getAllTeams`).then(r=>r.json())
+        ]);
+        allPushSubscribers = Array.isArray(subsRes) ? subsRes : [];
+        allPushTeams        = Array.isArray(teamsRes) ? teamsRes : [];
+
+        document.getElementById('push-subscribers-count').textContent = `${allPushSubscribers.length} suscriptor(es) en total`;
+        const teamSel = document.getElementById('push-segment-team');
+        teamSel.innerHTML = allPushTeams.map(t => `<option value="${esc(t.id)}">${esc(t.name)} (${(t.members||[]).length})</option>`).join('');
+
+        toast('✅ Suscriptores y equipos actualizados');
+    } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+/** Calcula la lista de pubIds del segmento elegido (vacío = todos) */
+function _getPushSegmentPubIds() {
+    const type = document.getElementById('push-segment-type').value;
+    if (type === 'all') return [];
+    if (type === 'team') {
+        const teamId = document.getElementById('push-segment-team').value;
+        const team = allPushTeams.find(t => t.id === teamId);
+        return team ? (team.members || []) : [];
+    }
+    // manual
+    return document.getElementById('push-segment-manual').value
+        .split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function _readPushComposeFields() {
+    return {
+        title: document.getElementById('push-compose-title').value.trim(),
+        body:  document.getElementById('push-compose-body').value.trim(),
+        url:   document.getElementById('push-compose-url').value.trim() || '/',
+        pubIds: _getPushSegmentPubIds()
+    };
+}
+
+document.getElementById('push-send-now-btn').addEventListener('click', async () => {
+    const token = adminToken();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    const { title, body, url, pubIds } = _readPushComposeFields();
+    const resultEl = document.getElementById('push-send-result');
+    if (!title || !body) { toast('Falta el título o el cuerpo', false); return; }
+
+    const btn = document.getElementById('push-send-now-btn');
+    btn.disabled = true; btn.textContent = '⏳ Enviando…';
+    try {
+        const data = await adminPost({ action: 'sendPushNotification', title, body, url, pubIds, token });
+        resultEl.classList.remove('hidden');
+        if (data.error) {
+            resultEl.style.color = '#f85149';
+            resultEl.textContent = '❌ ' + data.error;
+        } else {
+            resultEl.style.color = '#3fb950';
+            resultEl.textContent = `✅ Disparado — revisa la pestaña "Actions" de tu repo de GitHub en unos segundos para ver el envío real.`;
+            toast('✅ Envío disparado');
+        }
+    } catch(e) { toast('Error: ' + e.message, false); }
+    btn.disabled = false; btn.textContent = '🚀 Enviar ahora';
+});
+
+document.getElementById('push-schedule-btn').addEventListener('click', async () => {
+    const token = adminToken();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    const { title, body, url, pubIds } = _readPushComposeFields();
+    if (!title || !body) { toast('Falta el título o el cuerpo (arriba, en "Redactar y enviar")', false); return; }
+
+    const scheduleType   = document.getElementById('push-campaign-type').value;
+    const startDateTime  = document.getElementById('push-campaign-start').value;
+    const repeatWeeks    = parseInt(document.getElementById('push-campaign-weeks').value) || 1;
+    if (!startDateTime) { toast('Falta la fecha/hora del primer envío', false); return; }
+
+    const btn = document.getElementById('push-schedule-btn');
+    btn.disabled = true; btn.textContent = '⏳ Programando…';
+    try {
+        const data = await adminPost({ action: 'createPushCampaign', title, body, url, pubIds, scheduleType, startDateTime, repeatWeeks, token });
+        if (data.error) { toast('Error: ' + data.error, false); }
+        else { toast('✅ Campaña programada'); loadPushCampaigns(); }
+    } catch(e) { toast('Error: ' + e.message, false); }
+    btn.disabled = false; btn.textContent = '📌 Programar campaña';
+});
+
+document.getElementById('push-load-campaigns-btn').addEventListener('click', loadPushCampaigns);
+
+async function loadPushCampaigns() {
+    const token = adminToken();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    const listEl = document.getElementById('push-campaigns-list');
+    listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">⏳ Cargando…</p>';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getPushCampaigns&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (!Array.isArray(data)) { listEl.innerHTML = `<p style="color:#f85149">${esc(data.error||'Error')}</p>`; return; }
+        allPushCampaigns = data.sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+        renderPushCampaigns();
+    } catch(e) { listEl.innerHTML = `<p style="color:#f85149">Error: ${esc(e.message)}</p>`; }
+}
+
+function renderPushCampaigns() {
+    const listEl = document.getElementById('push-campaigns-list');
+    document.getElementById('push-campaigns-count').textContent = allPushCampaigns.length + ' campaña(s)';
+    if (!allPushCampaigns.length) { listEl.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:40px">Sin campañas todavía.</p>'; return; }
+
+    const statusColor = { scheduled:'#3fb950', completed:'#8b949e', cancelled:'#f85149' };
+    const statusLabel = { scheduled:'⏳ Programada', completed:'✅ Completada', cancelled:'✕ Cancelada' };
+
+    listEl.innerHTML = allPushCampaigns.map(c => {
+        const start = (() => { try { return new Date(c.startDateTime).toLocaleString('es-ES'); } catch { return c.startDateTime; } })();
+        const segmentDesc = c.pubIds.length ? `${c.pubIds.length} destinatario(s) concretos` : 'Todos los suscritos';
+        return `<div class="row-item px-4 py-4">
+            <div class="flex items-start justify-between gap-4 flex-wrap mb-1">
+                <div>
+                    <span class="text-sm font-bold text-white">${esc(c.title)}</span>
+                    <span style="font-size:11px;background:#21262d;padding:2px 7px;border-radius:10px;color:${statusColor[c.status]||'#8b949e'};margin-left:6px;">${statusLabel[c.status]||c.status}</span>
+                </div>
+                ${c.status === 'scheduled' ? `<button class="btn btn-red" style="font-size:11px;padding:5px 10px;" onclick="_cancelPushCampaignClick('${c.id}')">✕ Cancelar</button>` : ''}
+            </div>
+            <p style="font-size:12px;color:#8b949e;">${esc(c.body)}</p>
+            <p style="font-size:11px;color:#6b7280;margin-top:4px;">
+                ${c.scheduleType === 'weekly' ? `📅 Semanal · ${c.sentCount}/${c.repeatWeeks} enviadas` : '📅 Una vez'} ·
+                Primer envío: ${esc(start)} · 👥 ${esc(segmentDesc)}
+                ${c.lastSentAt ? ` · Último envío: ${esc(new Date(c.lastSentAt).toLocaleString('es-ES'))}` : ''}
+            </p>
+        </div>`;
+    }).join('');
+}
+
+async function _cancelPushCampaignClick(id) {
+    if (!confirm('¿Cancelar esta campaña? No se enviarán más notificaciones de ella.')) return;
+    const token = adminToken();
+    try {
+        const data = await adminPost({ action: 'cancelPushCampaign', id, token });
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        toast('✅ Campaña cancelada');
+        loadPushCampaigns();
+    } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+document.getElementById('push-run-due-btn').addEventListener('click', async () => {
+    const token = adminToken();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    const btn = document.getElementById('push-run-due-btn');
+    btn.disabled = true; btn.textContent = '⏳ Comprobando…';
+    try {
+        const data = await adminPost({ action: 'runDuePushCampaigns', token });
+        if (data.error) { toast('Error: ' + data.error, false); }
+        else { toast(`✅ Comprobado — ${data.sent} campaña(s) disparada(s)`); loadPushCampaigns(); }
+    } catch(e) { toast('Error: ' + e.message, false); }
+    btn.disabled = false; btn.textContent = '▶ Comprobar ahora (forzar envío de las que tocan)';
+});
 
 // ── Teams management ─────────────────────────────────────────────────────────
 
