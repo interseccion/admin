@@ -3234,6 +3234,7 @@ function updateNotifPreview() {
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <button class="btn btn-blue" id="push-send-now-btn">🚀 Enviar ahora</button>
             <button class="btn btn-gray" id="push-load-subscribers-btn" style="font-size:12px;">🔄 Actualizar suscriptores/equipos</button>
+            <button class="btn btn-gray" id="push-use-ad-btn" style="font-size:12px;">📢 Usar el anuncio actual</button>
         </div>
         <p id="push-send-result" class="hidden" style="font-size:12px;margin-top:10px;"></p>
     </div>
@@ -4048,6 +4049,36 @@ document.getElementById('push-campaign-type').addEventListener('change', () => {
 });
 
 document.getElementById('push-load-subscribers-btn').addEventListener('click', _loadPushSubscribersAndTeams);
+
+function _plainTextFromAdContent(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/@\{([^|]+)\|([^}]+)\}/g, '@$2')   // menciones de perfil → @Nombre
+        .replace(/#\{([^|]+)\|([^}]+)\}/g, '#$2')   // menciones de misterio → #Nombre
+        .replace(/<[^>]+>/g, ' ')                    // por si hay HTML suelto
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+document.getElementById('push-use-ad-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('push-use-ad-btn');
+    btn.disabled = true; btn.textContent = '⏳ Cargando…';
+    try {
+        const res = await fetch(`anuncios/actual.json?v=${Date.now()}`);
+        if (!res.ok) { toast('No se pudo cargar el anuncio actual (¿existe anuncios/actual.json?)', false); return; }
+        const ad = await res.json();
+
+        document.getElementById('push-compose-title').value = ad.title || 'Novedades';
+        let body = _plainTextFromAdContent(ad.content);
+        if (body.length > 150) body = body.slice(0, 147) + '…';
+        document.getElementById('push-compose-body').value = body;
+        // "./#anuncio" fuerza que se muestre el anuncio actual al abrir la app, aunque ya se hubiera visto
+        document.getElementById('push-compose-url').value = './#anuncio';
+
+        toast('📢 Anuncio cargado — revisa el texto antes de enviar (el cuerpo se recorta a 150 caracteres)');
+    } catch(e) { toast('Error: ' + e.message, false); }
+    btn.disabled = false; btn.textContent = '📢 Usar el anuncio actual';
+});
 
 async function _loadPushSubscribersAndTeams() {
     const token = adminToken();
