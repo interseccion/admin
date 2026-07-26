@@ -771,6 +771,9 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
             const el = document.getElementById('tab-' + t);
             if (el) el.classList.toggle('hidden', t !== btn.dataset.tab);
         });
+        if (btn.dataset.tab === 'push' && !allPushSubscribers.length && !allPushTeams.length) {
+            _loadPushSubscribersAndTeams();
+        }
     });
 });
 
@@ -3224,8 +3227,17 @@ function updateNotifPreview() {
             <select id="push-segment-type" style="min-width:180px;">
                 <option value="all">👥 Todos los suscritos</option>
                 <option value="team">🌆 Un equipo concreto</option>
+                <option value="captains">👑 Capitanes/admins (todos los equipos)</option>
+                <option value="unsolved">🎯 Quien NO ha resuelto X</option>
                 <option value="manual">✏️ IDs concretos</option>
             </select>
+            <select id="push-segment-unsolved-type" class="hidden" style="min-width:140px;">
+                <option value="normal">Misterio normal</option>
+                <option value="tarde">Misterio de tarde</option>
+                <option value="escape">Escape room</option>
+            </select>
+            <input type="text" id="push-segment-unsolved-id" class="hidden" placeholder="ID del contenido..." list="push-autocomplete-mysteries" style="min-width:220px;" autocomplete="off">
+            <datalist id="push-autocomplete-mysteries"></datalist>
             <select id="push-segment-team" class="hidden" style="min-width:220px;"></select>
             <input type="text" id="push-segment-manual" class="hidden" placeholder="ID1, ID2, ID3..." style="min-width:260px;">
             <span style="font-size:12px;color:#8b949e;" id="push-subscribers-count"></span>
@@ -4078,10 +4090,17 @@ let allPushSubscribers = [];
 let allPushTeams       = [];
 let allPushCampaigns   = [];
 
-document.getElementById('push-segment-type').addEventListener('change', () => {
+document.getElementById('push-segment-type').addEventListener('change', async () => {
     const val = document.getElementById('push-segment-type').value;
     document.getElementById('push-segment-team').classList.toggle('hidden', val !== 'team');
     document.getElementById('push-segment-manual').classList.toggle('hidden', val !== 'manual');
+    document.getElementById('push-segment-unsolved-type').classList.toggle('hidden', val !== 'unsolved');
+    document.getElementById('push-segment-unsolved-id').classList.toggle('hidden', val !== 'unsolved');
+    if (val === 'unsolved') {
+        if (!Object.keys(mysteryTitleMap).length) await loadMysteryTitles();
+        const dl = document.getElementById('push-autocomplete-mysteries');
+        dl.innerHTML = Object.entries(mysteryTitleMap).map(([id, title]) => `<option value="${esc(id)}">${esc(title)}</option>`).join('');
+    }
 });
 
 document.getElementById('push-campaign-type').addEventListener('change', () => {
@@ -4151,35 +4170,67 @@ async function _loadPushSubscribersAndTeams() {
     } catch(e) { toast('Error: ' + e.message, false); }
 }
 
-/** Calcula la lista de pubIds del segmento elegido (vacío = todos) */
-function _getPushSegmentPubIds() {
+/** Calcula la lista de pubIds del segmento elegido. Devuelve:
+ *  - [] para "todos"
+ *  - un array de pubIds para un segmento válido
+ *  - null si el segmento elegido no se pudo resolver (hay que avisar y NO enviar) */
+async function _getPushSegmentPubIds() {
     const type = document.getElementById('push-segment-type').value;
     if (type === 'all') return [];
+
     if (type === 'team') {
         const teamId = document.getElementById('push-segment-team').value;
+        if (!teamId) return null; // no hay equipos cargados o no se eligió ninguno
         const team = allPushTeams.find(t => t.id === teamId);
-        return team ? (team.members || []) : [];
+        if (!team) return null;
+        return team.members || [];
     }
+
+    if (type === 'captains') {
+        const ids = new Set();
+        allPushTeams.forEach(t => {
+            if (t.captain) ids.add(t.captain);
+            (t.admins || []).forEach(a => ids.add(a));
+        });
+        return [...ids];
+    }
+
+    if (type === 'unsolved') {
+        const token = adminToken();
+        const contentType = document.getElementById('push-segment-unsolved-type').value;
+        const contentId    = document.getElementById('push-segment-unsolved-id').value.trim();
+        if (!contentId) return null;
+        try {
+            const res  = await fetch(`${APPS_SCRIPT_URL}?action=getUnsolvedSegment&token=${encodeURIComponent(token)}&contentType=${contentType}&contentId=${encodeURIComponent(contentId)}`);
+            const data = await res.json();
+            if (data.error || !Array.isArray(data.pubIds)) return null;
+            toast(`🎯 ${data.pubIds.length} de ${data.totalSubscribers} suscritos no lo han resuelto`);
+            return data.pubIds;
+        } catch { return null; }
+    }
+
     // manual
-    return document.getElementById('push-segment-manual').value
+    const manual = document.getElementById('push-segment-manual').value
         .split(',').map(s => s.trim()).filter(Boolean);
+    return manual.length ? manual : null; // vacío escrito a mano tampoco debe caer en "todos" por accidente
 }
 
-function _readPushComposeFields() {
+async function _readPushComposeFields() {
     return {
         title: document.getElementById('push-compose-title').value.trim(),
         body:  document.getElementById('push-compose-body').value.trim(),
         url:   document.getElementById('push-compose-url').value.trim() || '/',
-        pubIds: _getPushSegmentPubIds()
+        pubIds: await _getPushSegmentPubIds() // ojo: puede ser null si el segmento no se pudo resolver
     };
 }
 
 document.getElementById('push-send-now-btn').addEventListener('click', async () => {
     const token = adminToken();
     if (!token) { toast('Introduce el token admin', false); return; }
-    const { title, body, url, pubIds } = _readPushComposeFields();
+    const { title, body, url, pubIds } = await _readPushComposeFields();
     const resultEl = document.getElementById('push-send-result');
     if (!title || !body) { toast('Falta el título o el cuerpo', false); return; }
+    if (pubIds === null) { toast('El segmento elegido no es válido (¿elegiste un equipo? ¿escribiste algún ID?)', false); return; }
 
     const btn = document.getElementById('push-send-now-btn');
     btn.disabled = true; btn.textContent = '⏳ Enviando…';
@@ -4201,8 +4252,9 @@ document.getElementById('push-send-now-btn').addEventListener('click', async () 
 document.getElementById('push-schedule-btn').addEventListener('click', async () => {
     const token = adminToken();
     if (!token) { toast('Introduce el token admin', false); return; }
-    const { title, body, url, pubIds } = _readPushComposeFields();
+    const { title, body, url, pubIds } = await _readPushComposeFields();
     if (!title || !body) { toast('Falta el título o el cuerpo (arriba, en "Redactar y enviar")', false); return; }
+    if (pubIds === null) { toast('El segmento elegido no es válido (¿elegiste un equipo? ¿escribiste algún ID?)', false); return; }
 
     const scheduleType  = document.getElementById('push-campaign-type').value;
     const startDateTime = document.getElementById('push-campaign-start').value;
