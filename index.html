@@ -3248,19 +3248,59 @@ function updateNotifPreview() {
                 <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Tipo de envío</label>
                 <select id="push-campaign-type" style="width:100%;">
                     <option value="once">Una sola vez</option>
-                    <option value="weekly">Semanal, durante varias semanas</option>
+                    <option value="interval">Cada X horas/días</option>
+                    <option value="weekdays">Días concretos de la semana</option>
                 </select>
             </div>
             <div>
-                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Fecha y hora del primer envío</label>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;" id="push-campaign-start-label">Fecha y hora del primer envío</label>
                 <input type="datetime-local" id="push-campaign-start" style="width:100%;">
             </div>
         </div>
-        <div id="push-campaign-weeks-row" class="hidden" style="margin-bottom:12px;">
-            <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">¿Durante cuántas semanas?</label>
-            <input type="number" id="push-campaign-weeks" value="6" min="1" style="width:120px;">
+
+        <!-- Modo: cada X horas/días -->
+        <div id="push-campaign-interval-row" class="hidden" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <div>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Cada cuánto</label>
+                <input type="number" id="push-campaign-interval-value" value="1" min="1" style="width:100%;">
+            </div>
+            <div>
+                <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Unidad</label>
+                <select id="push-campaign-interval-unit" style="width:100%;">
+                    <option value="hours">Horas</option>
+                    <option value="days">Días</option>
+                </select>
+            </div>
         </div>
-        <p style="font-size:11px;color:#6b7280;margin-bottom:14px;">Usa el título, cuerpo, URL y segmento de arriba ☝️ (la sección de "Redactar y enviar"). Esto solo guarda cuándo se debe mandar.</p>
+
+        <!-- Modo: días concretos de la semana -->
+        <div id="push-campaign-weekdays-row" class="hidden" style="margin-bottom:12px;">
+            <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:6px;">¿Qué días?</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+                <label style="font-size:11px;color:#c9d1d9;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="push-weekday-check" value="1"> Lun</label>
+                <label style="font-size:11px;color:#c9d1d9;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="push-weekday-check" value="2"> Mar</label>
+                <label style="font-size:11px;color:#c9d1d9;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="push-weekday-check" value="3"> Mié</label>
+                <label style="font-size:11px;color:#c9d1d9;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="push-weekday-check" value="4"> Jue</label>
+                <label style="font-size:11px;color:#c9d1d9;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="push-weekday-check" value="5"> Vie</label>
+                <label style="font-size:11px;color:#c9d1d9;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="push-weekday-check" value="6"> Sáb</label>
+                <label style="font-size:11px;color:#c9d1d9;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="push-weekday-check" value="0"> Dom</label>
+            </div>
+            <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Hora del día</label>
+            <input type="time" id="push-campaign-time-of-day" style="width:140px;">
+        </div>
+
+        <!-- Condición de fin (solo si no es "una sola vez") -->
+        <div id="push-campaign-end-row" class="hidden" style="margin-bottom:12px;background:#0d1117;border-radius:8px;padding:12px;">
+            <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:6px;">¿Cuándo termina la campaña?</label>
+            <div style="display:flex;gap:14px;margin-bottom:10px;">
+                <label style="font-size:12px;color:#c9d1d9;display:flex;align-items:center;gap:5px;"><input type="radio" name="push-end-type" value="count" checked> Nº de veces</label>
+                <label style="font-size:12px;color:#c9d1d9;display:flex;align-items:center;gap:5px;"><input type="radio" name="push-end-type" value="date"> Fecha límite</label>
+            </div>
+            <input type="number" id="push-campaign-end-count" value="6" min="1" style="width:100px;" placeholder="Nº de veces">
+            <input type="datetime-local" id="push-campaign-end-date" class="hidden" style="width:220px;">
+        </div>
+
+        <p style="font-size:11px;color:#6b7280;margin-bottom:14px;">Usa el título, cuerpo, URL y segmento de arriba ☝️ (la sección de "Redactar y enviar"). Esto solo guarda cuándo se debe mandar — y puede convivir con otras campañas ya activas sin problema (ej. un relámpago cada hora + una semanal a la vez).</p>
         <button class="btn btn-primary" id="push-schedule-btn" style="background:#4f46e5;">📌 Programar campaña</button>
     </div>
 
@@ -4045,7 +4085,19 @@ document.getElementById('push-segment-type').addEventListener('change', () => {
 });
 
 document.getElementById('push-campaign-type').addEventListener('change', () => {
-    document.getElementById('push-campaign-weeks-row').classList.toggle('hidden', document.getElementById('push-campaign-type').value !== 'weekly');
+    const val = document.getElementById('push-campaign-type').value;
+    document.getElementById('push-campaign-interval-row').classList.toggle('hidden', val !== 'interval');
+    document.getElementById('push-campaign-weekdays-row').classList.toggle('hidden', val !== 'weekdays');
+    document.getElementById('push-campaign-end-row').classList.toggle('hidden', val === 'once');
+    document.getElementById('push-campaign-start-label').textContent = val === 'weekdays' ? 'Fecha a partir de la cual empieza' : 'Fecha y hora del primer envío';
+});
+
+document.querySelectorAll('input[name="push-end-type"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+        const isDate = document.querySelector('input[name="push-end-type"]:checked').value === 'date';
+        document.getElementById('push-campaign-end-count').classList.toggle('hidden', isDate);
+        document.getElementById('push-campaign-end-date').classList.toggle('hidden', !isDate);
+    });
 });
 
 document.getElementById('push-load-subscribers-btn').addEventListener('click', _loadPushSubscribersAndTeams);
@@ -4152,15 +4204,34 @@ document.getElementById('push-schedule-btn').addEventListener('click', async () 
     const { title, body, url, pubIds } = _readPushComposeFields();
     if (!title || !body) { toast('Falta el título o el cuerpo (arriba, en "Redactar y enviar")', false); return; }
 
-    const scheduleType   = document.getElementById('push-campaign-type').value;
-    const startDateTime  = document.getElementById('push-campaign-start').value;
-    const repeatWeeks    = parseInt(document.getElementById('push-campaign-weeks').value) || 1;
-    if (!startDateTime) { toast('Falta la fecha/hora del primer envío', false); return; }
+    const scheduleType  = document.getElementById('push-campaign-type').value;
+    const startDateTime = document.getElementById('push-campaign-start').value;
+    if (!startDateTime) { toast('Falta la fecha/hora de inicio', false); return; }
+
+    const opts = {};
+    if (scheduleType === 'interval') {
+        opts.intervalValue = parseInt(document.getElementById('push-campaign-interval-value').value) || 1;
+        opts.intervalUnit  = document.getElementById('push-campaign-interval-unit').value;
+    } else if (scheduleType === 'weekdays') {
+        opts.weekdays = [...document.querySelectorAll('.push-weekday-check:checked')].map(cb => parseInt(cb.value));
+        opts.timeOfDay = document.getElementById('push-campaign-time-of-day').value;
+        if (opts.weekdays.length === 0) { toast('Elige al menos un día de la semana', false); return; }
+        if (!opts.timeOfDay) { toast('Indica la hora del día', false); return; }
+    }
+
+    let endType = '', endValue = '';
+    if (scheduleType !== 'once') {
+        endType = document.querySelector('input[name="push-end-type"]:checked').value;
+        endValue = endType === 'count'
+            ? (parseInt(document.getElementById('push-campaign-end-count').value) || 1)
+            : document.getElementById('push-campaign-end-date').value;
+        if (endType === 'date' && !endValue) { toast('Indica la fecha límite', false); return; }
+    }
 
     const btn = document.getElementById('push-schedule-btn');
     btn.disabled = true; btn.textContent = '⏳ Programando…';
     try {
-        const data = await adminPost({ action: 'createPushCampaign', title, body, url, pubIds, scheduleType, startDateTime, repeatWeeks, token });
+        const data = await adminPost({ action: 'createPushCampaign', title, body, url, pubIds, scheduleType, startDateTime, opts, endType, endValue, token });
         if (data.error) { toast('Error: ' + data.error, false); }
         else { toast('✅ Campaña programada'); loadPushCampaigns(); }
     } catch(e) { toast('Error: ' + e.message, false); }
@@ -4190,10 +4261,23 @@ function renderPushCampaigns() {
 
     const statusColor = { scheduled:'#3fb950', completed:'#8b949e', cancelled:'#f85149' };
     const statusLabel = { scheduled:'⏳ Programada', completed:'✅ Completada', cancelled:'✕ Cancelada' };
+    const WEEKDAY_NAMES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 
     listEl.innerHTML = allPushCampaigns.map(c => {
         const start = (() => { try { return new Date(c.startDateTime).toLocaleString('es-ES'); } catch { return c.startDateTime; } })();
         const segmentDesc = c.pubIds.length ? `${c.pubIds.length} destinatario(s) concretos` : 'Todos los suscritos';
+
+        let scheduleDesc;
+        if (c.scheduleType === 'once') {
+            scheduleDesc = '📅 Una vez';
+        } else if (c.scheduleType === 'interval') {
+            scheduleDesc = `🔁 Cada ${c.intervalValue} ${c.intervalUnit === 'hours' ? 'hora(s)' : 'día(s)'}`;
+        } else {
+            scheduleDesc = `📆 ${(c.weekdays||[]).map(d => WEEKDAY_NAMES[d]).join(', ')} a las ${c.timeOfDay || '?'}`;
+        }
+        const endDesc = c.scheduleType === 'once' ? '' :
+            (c.endType === 'count' ? ` · ${c.sentCount}/${c.endValue} enviadas` : ` · hasta ${(()=>{try{return new Date(c.endValue).toLocaleString('es-ES');}catch{return c.endValue;}})()}`);
+
         return `<div class="row-item px-4 py-4">
             <div class="flex items-start justify-between gap-4 flex-wrap mb-1">
                 <div>
@@ -4204,8 +4288,8 @@ function renderPushCampaigns() {
             </div>
             <p style="font-size:12px;color:#8b949e;">${esc(c.body)}</p>
             <p style="font-size:11px;color:#6b7280;margin-top:4px;">
-                ${c.scheduleType === 'weekly' ? `📅 Semanal · ${c.sentCount}/${c.repeatWeeks} enviadas` : '📅 Una vez'} ·
-                Primer envío: ${esc(start)} · 👥 ${esc(segmentDesc)}
+                ${scheduleDesc}${endDesc} ·
+                Empieza: ${esc(start)} · 👥 ${esc(segmentDesc)}
                 ${c.lastSentAt ? ` · Último envío: ${esc(new Date(c.lastSentAt).toLocaleString('es-ES'))}` : ''}
             </p>
         </div>`;
