@@ -666,9 +666,9 @@ async function adminPost(body) {
     });
     return res.json();
 }
-const GAMES_INDEX_PATH = 'games/index.json';
-const TARDE_INDEX_PATH = 'tarde/index.json';
-const ESCAPE_INDEX_PATH = 'escape/index.json';
+const GAMES_INDEX_PATH = '/games/index.json';
+const TARDE_INDEX_PATH = '/tarde/index.json';
+const ESCAPE_INDEX_PATH = '/escape/index.json';
 
 // Mapa id → título de misterio (cargado al inicio)
 let mysteryTitleMap = {};
@@ -680,7 +680,7 @@ async function loadMysteryTitles() {
         if (indexRes.ok) {
             const files = await indexRes.json();
             const results = await Promise.all(
-                files.map(f => fetch(`games/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
+                files.map(f => fetch(`/games/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
             );
             results.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
         }
@@ -692,7 +692,7 @@ async function loadMysteryTitles() {
         if (indexResEscape.ok) {
             const filesEscape = await indexResEscape.json();
             const resultsEscape = await Promise.all(
-                filesEscape.map(f => fetch(`escape/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
+                filesEscape.map(f => fetch(`/escape/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
             );
             resultsEscape.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
         }
@@ -703,7 +703,7 @@ async function loadMysteryTitles() {
         if (indexResTarde.ok) {
             const filesTarde = await indexResTarde.json();
             const resultsTarde = await Promise.all(
-                filesTarde.map(f => fetch(`tarde/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
+                filesTarde.map(f => fetch(`/tarde/${f}?v=${Date.now()}`).then(r => r.ok ? r.json() : null).catch(() => null))
             );
             resultsTarde.filter(Boolean).forEach(g => { if (g.id && g.title) mysteryTitleMap[g.id] = g.title; });
         }
@@ -4064,8 +4064,8 @@ document.getElementById('push-use-ad-btn').addEventListener('click', async () =>
     const btn = document.getElementById('push-use-ad-btn');
     btn.disabled = true; btn.textContent = '⏳ Cargando…';
     try {
-        const res = await fetch(`anuncios/actual.json?v=${Date.now()}`);
-        if (!res.ok) { toast('No se pudo cargar el anuncio actual (¿existe anuncios/actual.json?)', false); return; }
+        const res = await fetch(`/anuncios/actual.json?v=${Date.now()}`);
+        if (!res.ok) { toast('No se pudo cargar el anuncio actual (¿existe /anuncios/actual.json en la raíz del repo?)', false); return; }
         const ad = await res.json();
 
         document.getElementById('push-compose-title').value = ad.title || 'Novedades';
