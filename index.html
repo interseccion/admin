@@ -612,6 +612,11 @@
                     <input type="text" id="new-custom-rand" maxlength="32" placeholder="solo a-z 0-9" style="width:100%;font-size:11px;font-family:monospace;" autocomplete="off" spellcheck="false">
                     <p style="font-size:10px;color:#484f58;margin-top:3px;">Vacío = auto-generada</p>
                 </div>
+                <div>
+                    <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Frase semilla (recuperación)</label>
+                    <input type="text" id="new-seed-phrase" placeholder="ej: Roble Cenit Vidrio" style="width:100%;font-size:11px;font-family:monospace;" autocomplete="off" spellcheck="false">
+                    <p style="font-size:10px;color:#484f58;margin-top:3px;">Vacío = auto-generada</p>
+                </div>
             </div>
         </div>
         <div style="margin-top:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -624,6 +629,7 @@
                 <div style="font-size:11px;color:#8b949e;line-height:1.8;">
                     <div>ID público: <span id="result-public-id" style="color:#79c0ff;font-family:monospace;"></span></div>
                     <div>ID privado: <span id="result-private-id" style="color:#8b949e;font-family:monospace;font-size:10px;word-break:break-all;"></span></div>
+                    <div>Frase semilla: <span id="result-seed-phrase" style="color:#e3b341;font-family:monospace;"></span></div>
                 </div>
                 <button class="btn btn-gray" style="margin-top:10px;font-size:11px;" id="download-id-admin-btn">⬇ Descargar archivo ID</button>
                 <button class="btn btn-gray" style="margin-top:10px;font-size:11px;margin-left:6px;" id="copy-private-id-btn">📋 Copiar ID privado</button>
@@ -1979,17 +1985,68 @@ function renderNombresControlados() {
     };
     const tipoLabel = { bloqueado: '🚫 bloqueado', usado: '🔒 usado (reservado)' };
 
+    // Solo tiene sentido "convertir en cuenta" un nombre reservado (usado) que no sea
+    // exclusivamente de equipo, y que todavía no se haya convertido antes.
+    const puedeConvertirse = (it) => it.tipo === 'usado' && it.ambito !== 'equipo' && !it.cuentaCreada;
+
     list.innerHTML = items.map(it => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #21262d;gap:8px;">
-            <div class="min-w-0">
-                <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(it.palabra)}</p>
-                <p style="font-size:11px;color:#8b949e;">${ambitoLabel[it.ambito] || it.ambito}${it.nota ? ' · ' + esc(it.nota) : ''}</p>
+        <div style="border-bottom:1px solid #21262d;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;gap:8px;">
+                <div class="min-w-0">
+                    <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(it.palabra)}</p>
+                    <p style="font-size:11px;color:#8b949e;">${ambitoLabel[it.ambito] || it.ambito}${it.nota ? ' · ' + esc(it.nota) : ''}</p>
+                    ${it.cuentaCreada ? `<p style="font-size:11px;color:#3fb950;margin-top:2px;">✅ Cuenta creada: ${esc(it.cuentaCreada)}</p>` : ''}
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                    <span style="font-size:11px;padding:2px 8px;border-radius:10px;${tipoStyle[it.tipo]||''}">${tipoLabel[it.tipo] || esc(it.tipo)}</span>
+                    ${puedeConvertirse(it) ? `<button class="btn btn-blue" style="padding:3px 8px;font-size:11px;" onclick="toggleConvertForm(${it.row})">➕ Crear cuenta</button>` : ''}
+                    <button class="btn btn-red" style="padding:3px 8px;font-size:11px;" onclick="deleteNombreControlado(${it.row})">🗑️</button>
+                </div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-                <span style="font-size:11px;padding:2px 8px;border-radius:10px;${tipoStyle[it.tipo]||''}">${tipoLabel[it.tipo] || esc(it.tipo)}</span>
-                <button class="btn btn-red" style="padding:3px 8px;font-size:11px;" onclick="deleteNombreControlado(${it.row})">🗑️</button>
-            </div>
+            ${puedeConvertirse(it) ? `
+            <div id="conv-form-${it.row}" class="hidden" style="padding:10px 14px 14px;background:#0d1117;">
+                <p style="font-size:11px;color:#8b949e;margin-bottom:8px;">Se creará la cuenta con nombre de usuario <b style="color:#e6edf3;">${esc(it.palabra)}</b>.</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                    <div>
+                        <label style="font-size:10px;color:#8b949e;">Nombre de display</label>
+                        <input id="conv-display-${it.row}" placeholder="ej: Ana García" style="width:100%;font-size:11px;margin-top:2px;">
+                    </div>
+                    <div>
+                        <label style="font-size:10px;color:#8b949e;">Frase semilla (opcional)</label>
+                        <input id="conv-seed-${it.row}" placeholder="vacío = auto-generada" style="width:100%;font-size:11px;font-family:monospace;margin-top:2px;">
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button class="btn btn-blue" style="font-size:11px;" onclick="confirmConvertToAccount(${it.row})">✅ Confirmar creación</button>
+                    <button class="btn btn-gray" style="font-size:11px;" onclick="toggleConvertForm(${it.row})">Cancelar</button>
+                    <span id="conv-status-${it.row}" style="font-size:11px;"></span>
+                </div>
+            </div>` : ''}
         </div>`).join('');
+}
+
+function toggleConvertForm(row) {
+    document.getElementById(`conv-form-${row}`)?.classList.toggle('hidden');
+}
+
+async function confirmConvertToAccount(row) {
+    const displayName = document.getElementById(`conv-display-${row}`)?.value.trim();
+    const seedPhrase  = document.getElementById(`conv-seed-${row}`)?.value.trim();
+    const statusEl    = document.getElementById(`conv-status-${row}`);
+    if (!displayName) { toast('Escribe un nombre de display', false); return; }
+    statusEl.textContent = '⏳ creando…'; statusEl.style.color = '#8b949e';
+    try {
+        const data = await adminPost({ action: 'convertReservedToAccount', row, displayName, seedPhrase });
+        if (!data.ok) {
+            statusEl.textContent = '❌ ' + (data.error || 'error'); statusEl.style.color = '#f87171';
+            return;
+        }
+        toast('✅ Cuenta creada: ' + data.publicId);
+        alert(`Cuenta creada correctamente:\n\nID público: ${data.publicId}\nID privado: ${data.privateId}\nFrase semilla: ${data.seedPhrase}\n\nGuarda esto — el ID privado no se puede recuperar después.`);
+        await loadNombresControlados();
+    } catch(e) {
+        statusEl.textContent = '❌ error de conexión'; statusEl.style.color = '#f87171';
+    }
 }
 
 async function addNombreControlado() {
@@ -2484,28 +2541,32 @@ document.getElementById('create-account-btn')?.addEventListener('click', async (
     const customDate = document.getElementById('new-custom-date')?.value?.trim() || '';
     const randLen    = document.getElementById('new-rand-len')?.value?.trim() || '32';
     const customRand = (document.getElementById('new-custom-rand')?.value?.trim() || '').toLowerCase();
+    const seedPhrase = document.getElementById('new-seed-phrase')?.value?.trim() || '';
     if (customRand && !/^[a-z0-9]{1,32}$/.test(customRand)) { toast('❌ La parte aleatoria solo puede tener a-z y dígitos (máx 32)', false); return; }
     const btn = document.getElementById('create-account-btn');
     btn.disabled = true; btn.textContent = '⏳ Creando…';
     try {
-        const cParams = new URLSearchParams({ action:'createAccount', token, username, displayName });
+        const cParams = new URLSearchParams({ action:'createAccount', token, username, displayName, wantSeed:'1' });
         if (customDate) cParams.set('customDate', customDate);
         if (randLen && randLen !== '32') cParams.set('randLen', randLen);
         if (customRand) cParams.set('customRand', customRand);
+        if (seedPhrase) cParams.set('seedPhrase', seedPhrase);
         const res  = await fetch(`${APPS_SCRIPT_URL}?${cParams}`);
         const data = await res.json();
         if (!data.ok) {
             const msg = data.error === 'username_taken'
                 ? `El nombre "${username}" ya está registrado. Sugerencia: ${data.suggestion}`
-                : data.error || 'Error desconocido';
+                : data.message || data.error || 'Error desconocido';
             toast('❌ ' + msg, false);
         } else {
             lastCreatedId = data.privateId;
             document.getElementById('result-public-id').textContent  = data.publicId;
             document.getElementById('result-private-id').textContent = data.privateId;
+            document.getElementById('result-seed-phrase').textContent = data.seedPhrase || '—';
             document.getElementById('create-account-result').style.display = 'block';
             document.getElementById('new-username').value    = '';
             document.getElementById('new-displayname').value = '';
+            document.getElementById('new-seed-phrase').value = '';
             document.getElementById('username-check-msg').textContent = '';
             toast('✅ Cuenta creada: ' + data.publicId);
         }
@@ -2650,6 +2711,14 @@ document.getElementById('validate-id-btn')?.addEventListener('click', async () =
                 <input id="edit-public-id" value="${esc(publicId)}" style="width:100%;font-size:11px;margin-top:2px;">
             </div>
             <div style="margin-bottom:10px;">
+                <label style="font-size:10px;color:#8b949e;">Frase semilla (recuperación)</label>
+                <div style="display:flex;gap:6px;margin-top:2px;">
+                    <input id="edit-seed-phrase" placeholder="⏳ cargando…" style="flex:1;font-size:11px;font-family:monospace;">
+                    <button class="btn btn-gray" style="font-size:11px;padding:4px 10px;" onclick="saveSeedPhraseAdmin()">💾 Guardar frase</button>
+                </div>
+                <span id="edit-seed-status" style="font-size:10px;"></span>
+            </div>
+            <div style="margin-bottom:10px;">
                 <label style="font-size:10px;color:#8b949e;display:block;margin-bottom:4px;">Mensaje para el usuario</label>
                 <textarea id="edit-msg" rows="2" style="width:100%;font-size:11px;background:#0d1117;border:1px solid #21262d;border-radius:6px;padding:6px;color:#e6edf3;resize:vertical;">Tu cuenta ha sido actualizada. Pulsa el botón para restaurar tu sesión con el nuevo ID.</textarea>
             </div>
@@ -2674,7 +2743,43 @@ document.getElementById('validate-id-btn')?.addEventListener('click', async () =
         decoded += `<p style="color:#8b949e;font-size:11px;margin-top:4px;">(introduce el token para verificar en PRIVADO)</p>`;
     }
     resultEl.innerHTML = decoded;
+
+    // Cargar la frase semilla actual (si el ID tiene formato v2 y hay token)
+    const seedInput = document.getElementById('edit-seed-phrase');
+    if (seedInput) {
+        if (!token) { seedInput.placeholder = '(introduce el token para ver/editar)'; }
+        else {
+            try {
+                const res  = await fetch(`${APPS_SCRIPT_URL}?action=getSeedPhrase&token=${encodeURIComponent(token)}&privateId=${encodeURIComponent(idInput)}`);
+                const data = await res.json();
+                seedInput.value = data.seed || '';
+                seedInput.placeholder = data.seed ? '' : '(sin frase todavía)';
+            } catch(e) { seedInput.placeholder = 'Error al cargar'; }
+        }
+    }
 });
+
+async function saveSeedPhraseAdmin() {
+    const token      = document.getElementById('admin-token').value.trim();
+    const privateId  = document.getElementById('edit-original-id')?.value.trim();
+    const seed       = document.getElementById('edit-seed-phrase')?.value.trim();
+    const statusEl   = document.getElementById('edit-seed-status');
+    if (!token)     { toast('Introduce el token admin', false); return; }
+    if (!privateId) { toast('Decodifica primero un ID', false); return; }
+    if (!seed)      { toast('La frase semilla no puede estar vacía', false); return; }
+    statusEl.textContent = '⏳ guardando…'; statusEl.style.color = '#8b949e';
+    try {
+        const data = await adminPost({ action: 'setSeedPhrase', privateId, seed });
+        if (data.ok) {
+            statusEl.textContent = '✅ guardada'; statusEl.style.color = '#3fb950';
+            toast('✅ Frase semilla actualizada');
+        } else {
+            statusEl.textContent = '❌ ' + (data.error || 'error'); statusEl.style.color = '#f87171';
+        }
+    } catch(e) {
+        statusEl.textContent = '❌ error de conexión'; statusEl.style.color = '#f87171';
+    }
+}
 
 function editCompletarRandom(existing) {
     const BASE36 = '0123456789abcdefghijklmnopqrstuvwxyz';
