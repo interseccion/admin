@@ -583,6 +583,10 @@
     <!-- Crear nueva cuenta -->
     <div class="card p-6 mb-4">
         <h2 style="font-size:16px;font-weight:700;color:#e6edf3;margin-bottom:16px;">🆕 Crear nueva cuenta</h2>
+        <div id="convert-banner" class="hidden" style="background:#1e2a4a;border:1px solid #1e3a8a;border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:12px;color:#93c5fd;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <span id="convert-banner-text"></span>
+            <button onclick="cancelConvertFromNombres()" style="background:none;border:none;color:#93c5fd;text-decoration:underline;cursor:pointer;font-size:11px;flex-shrink:0;">Cancelar</button>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:600px;">
             <div>
                 <label style="font-size:11px;color:#8b949e;display:block;margin-bottom:4px;">Nombre de usuario (solo minúsculas a-z, números y guion bajo, sin espacios)</label>
@@ -594,7 +598,7 @@
                 <input type="text" id="new-displayname" placeholder="ej: Ana García" style="width:100%;">
             </div>
         </div>
-        <div style="margin-top:12px;">
+        <div id="advanced-options-wrap" style="margin-top:12px;">
             <button type="button" onclick="(()=>{const d=this.nextElementSibling;d.classList.toggle('hidden');this.textContent=d.classList.contains('hidden')?'▸ Opciones avanzadas':'▾ Opciones avanzadas'})()" style="background:none;border:none;color:#8b949e;font-size:11px;cursor:pointer;padding:0;">▸ Opciones avanzadas</button>
             <div class="hidden" style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;max-width:720px;padding:12px;background:#0d1117;border-radius:8px;border:1px solid #21262d;">
                 <div>
@@ -1990,63 +1994,57 @@ function renderNombresControlados() {
     const puedeConvertirse = (it) => it.tipo === 'usado' && it.ambito !== 'equipo' && !it.cuentaCreada;
 
     list.innerHTML = items.map(it => `
-        <div style="border-bottom:1px solid #21262d;">
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;gap:8px;">
-                <div class="min-w-0">
-                    <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(it.palabra)}</p>
-                    <p style="font-size:11px;color:#8b949e;">${ambitoLabel[it.ambito] || it.ambito}${it.nota ? ' · ' + esc(it.nota) : ''}</p>
-                    ${it.cuentaCreada ? `<p style="font-size:11px;color:#3fb950;margin-top:2px;">✅ Cuenta creada: ${esc(it.cuentaCreada)}</p>` : ''}
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-                    <span style="font-size:11px;padding:2px 8px;border-radius:10px;${tipoStyle[it.tipo]||''}">${tipoLabel[it.tipo] || esc(it.tipo)}</span>
-                    ${puedeConvertirse(it) ? `<button class="btn btn-blue" style="padding:3px 8px;font-size:11px;" onclick="toggleConvertForm(${it.row})">➕ Crear cuenta</button>` : ''}
-                    <button class="btn btn-red" style="padding:3px 8px;font-size:11px;" onclick="deleteNombreControlado(${it.row})">🗑️</button>
-                </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #21262d;gap:8px;">
+            <div class="min-w-0">
+                <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(it.palabra)}</p>
+                <p style="font-size:11px;color:#8b949e;">${ambitoLabel[it.ambito] || it.ambito}${it.nota ? ' · ' + esc(it.nota) : ''}</p>
+                ${it.cuentaCreada ? `<p style="font-size:11px;color:#3fb950;margin-top:2px;">✅ Cuenta creada: ${esc(it.cuentaCreada)}</p>` : ''}
             </div>
-            ${puedeConvertirse(it) ? `
-            <div id="conv-form-${it.row}" class="hidden" style="padding:10px 14px 14px;background:#0d1117;">
-                <p style="font-size:11px;color:#8b949e;margin-bottom:8px;">Se creará la cuenta con nombre de usuario <b style="color:#e6edf3;">${esc(it.palabra)}</b>.</p>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-                    <div>
-                        <label style="font-size:10px;color:#8b949e;">Nombre de display</label>
-                        <input id="conv-display-${it.row}" placeholder="ej: Ana García" style="width:100%;font-size:11px;margin-top:2px;">
-                    </div>
-                    <div>
-                        <label style="font-size:10px;color:#8b949e;">Frase semilla (opcional)</label>
-                        <input id="conv-seed-${it.row}" placeholder="vacío = auto-generada" style="width:100%;font-size:11px;font-family:monospace;margin-top:2px;">
-                    </div>
-                </div>
-                <div style="display:flex;gap:8px;align-items:center;">
-                    <button class="btn btn-blue" style="font-size:11px;" onclick="confirmConvertToAccount(${it.row})">✅ Confirmar creación</button>
-                    <button class="btn btn-gray" style="font-size:11px;" onclick="toggleConvertForm(${it.row})">Cancelar</button>
-                    <span id="conv-status-${it.row}" style="font-size:11px;"></span>
-                </div>
-            </div>` : ''}
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                <span style="font-size:11px;padding:2px 8px;border-radius:10px;${tipoStyle[it.tipo]||''}">${tipoLabel[it.tipo] || esc(it.tipo)}</span>
+                ${puedeConvertirse(it) ? `<button class="btn btn-blue" style="padding:3px 8px;font-size:11px;" onclick="startConvertFromNombres(${it.row}, '${esc(it.palabra).replace(/'/g,"\\'")}')">➕ Crear cuenta</button>` : ''}
+                <button class="btn btn-red" style="padding:3px 8px;font-size:11px;" onclick="deleteNombreControlado(${it.row})">🗑️</button>
+            </div>
         </div>`).join('');
 }
 
-function toggleConvertForm(row) {
-    document.getElementById(`conv-form-${row}`)?.classList.toggle('hidden');
+/**
+ * Lleva el "➕ Crear cuenta" de un nombre reservado hasta el formulario normal
+ * de "Crear nueva cuenta" en la pestaña Cuentas — mismo formulario de siempre,
+ * solo que con el nombre de usuario ya fijado y recordando de qué fila viene,
+ * para poder marcarla como convertida al terminar.
+ */
+let pendingConvertRow = null;
+
+function startConvertFromNombres(row, palabra) {
+    pendingConvertRow = row;
+
+    document.querySelector('[data-tab="cuentas"]')?.click();
+
+    const userInput = document.getElementById('new-username');
+    userInput.value = palabra;
+    userInput.disabled = true;
+    document.getElementById('username-check-msg').textContent = '';
+
+    // La fecha/aleatoria personalizadas no aplican al convertir un reservado
+    // (se usa siempre hoy + aleatoria completa, igual que con cualquier cuenta nueva segura)
+    document.getElementById('advanced-options-wrap').classList.add('hidden');
+
+    const banner = document.getElementById('convert-banner');
+    banner.classList.remove('hidden');
+    document.getElementById('convert-banner-text').textContent =
+        `Convirtiendo el nombre reservado "${palabra}" en una cuenta. Solo falta el nombre de display.`;
+
+    document.getElementById('new-displayname').focus();
 }
 
-async function confirmConvertToAccount(row) {
-    const displayName = document.getElementById(`conv-display-${row}`)?.value.trim();
-    const seedPhrase  = document.getElementById(`conv-seed-${row}`)?.value.trim();
-    const statusEl    = document.getElementById(`conv-status-${row}`);
-    if (!displayName) { toast('Escribe un nombre de display', false); return; }
-    statusEl.textContent = '⏳ creando…'; statusEl.style.color = '#8b949e';
-    try {
-        const data = await adminPost({ action: 'convertReservedToAccount', row, displayName, seedPhrase });
-        if (!data.ok) {
-            statusEl.textContent = '❌ ' + (data.error || 'error'); statusEl.style.color = '#f87171';
-            return;
-        }
-        toast('✅ Cuenta creada: ' + data.publicId);
-        alert(`Cuenta creada correctamente:\n\nID público: ${data.publicId}\nID privado: ${data.privateId}\nFrase semilla: ${data.seedPhrase}\n\nGuarda esto — el ID privado no se puede recuperar después.`);
-        await loadNombresControlados();
-    } catch(e) {
-        statusEl.textContent = '❌ error de conexión'; statusEl.style.color = '#f87171';
-    }
+function cancelConvertFromNombres() {
+    pendingConvertRow = null;
+    const userInput = document.getElementById('new-username');
+    userInput.disabled = false;
+    userInput.value = '';
+    document.getElementById('advanced-options-wrap').classList.remove('hidden');
+    document.getElementById('convert-banner').classList.add('hidden');
 }
 
 async function addNombreControlado() {
@@ -2546,13 +2544,20 @@ document.getElementById('create-account-btn')?.addEventListener('click', async (
     const btn = document.getElementById('create-account-btn');
     btn.disabled = true; btn.textContent = '⏳ Creando…';
     try {
-        const cParams = new URLSearchParams({ action:'createAccount', token, username, displayName, wantSeed:'1' });
-        if (customDate) cParams.set('customDate', customDate);
-        if (randLen && randLen !== '32') cParams.set('randLen', randLen);
-        if (customRand) cParams.set('customRand', customRand);
-        if (seedPhrase) cParams.set('seedPhrase', seedPhrase);
-        const res  = await fetch(`${APPS_SCRIPT_URL}?${cParams}`);
-        const data = await res.json();
+        let data;
+        if (pendingConvertRow) {
+            // Viene de "Nombres" → convertir el nombre reservado en cuenta (mismo formulario, otra acción)
+            data = await adminPost({ action: 'convertReservedToAccount', row: pendingConvertRow, displayName, seedPhrase });
+        } else {
+            const cParams = new URLSearchParams({ action:'createAccount', token, username, displayName, wantSeed:'1' });
+            if (customDate) cParams.set('customDate', customDate);
+            if (randLen && randLen !== '32') cParams.set('randLen', randLen);
+            if (customRand) cParams.set('customRand', customRand);
+            if (seedPhrase) cParams.set('seedPhrase', seedPhrase);
+            const res  = await fetch(`${APPS_SCRIPT_URL}?${cParams}`);
+            data = await res.json();
+        }
+
         if (!data.ok) {
             const msg = data.error === 'username_taken'
                 ? `El nombre "${username}" ya está registrado. Sugerencia: ${data.suggestion}`
@@ -2564,11 +2569,19 @@ document.getElementById('create-account-btn')?.addEventListener('click', async (
             document.getElementById('result-private-id').textContent = data.privateId;
             document.getElementById('result-seed-phrase').textContent = data.seedPhrase || '—';
             document.getElementById('create-account-result').style.display = 'block';
+            document.getElementById('new-username').disabled = false;
             document.getElementById('new-username').value    = '';
             document.getElementById('new-displayname').value = '';
             document.getElementById('new-seed-phrase').value = '';
             document.getElementById('username-check-msg').textContent = '';
+            document.getElementById('advanced-options-wrap').classList.remove('hidden');
+            document.getElementById('convert-banner').classList.add('hidden');
             toast('✅ Cuenta creada: ' + data.publicId);
+
+            if (pendingConvertRow) {
+                pendingConvertRow = null;
+                loadNombresControlados().catch(() => {}); // refresca en segundo plano, silencioso
+            }
         }
     } catch(e) { toast('Error de conexión', false); }
     btn.disabled = false; btn.textContent = '✨ Crear cuenta en servidor';
