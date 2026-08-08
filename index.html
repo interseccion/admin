@@ -88,6 +88,7 @@
     <button class="tab-btn" data-tab="notifs-enviadas">📤 Notifs enviadas</button>
     <button class="tab-btn" data-tab="feedback">💬 Feedback</button>
     <button class="tab-btn" data-tab="usuarios">👥 Usuarios</button>
+    <button class="tab-btn" data-tab="nombres">🚫 Nombres</button>
     <button class="tab-btn" data-tab="misterios">🔍 Misterios</button>
     <button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
     <button class="tab-btn" data-tab="cuentas">🔑 Cuentas</button>
@@ -317,6 +318,44 @@
     <div class="card overflow-hidden">
         <div id="users-list">
             <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar usuarios" para ver la lista</p>
+        </div>
+    </div>
+</div>
+
+<!-- ───────────────────────────────────────────────────────── -->
+<!-- TAB: NOMBRES (palabras prohibidas + nombres reservados) -->
+<!-- ───────────────────────────────────────────────────────── -->
+<div id="tab-nombres" class="hidden">
+    <div class="card p-4 mb-4" style="max-width:520px;">
+        <h2 class="text-lg font-bold text-white mb-1">Añadir entrada</h2>
+        <p style="font-size:12px;color:#8b949e;margin-bottom:12px;">
+            <b>Bloqueado</b> = se rechaza si el nombre CONTIENE esta palabra (ej. una palabrota).<br>
+            <b>Usado</b> = nombre reservado; si alguien lo intenta coger, se le dice que ya está en uso (coincidencia exacta).
+        </p>
+        <input type="text" id="nombre-edit-palabra" placeholder="Palabra o nombre" style="margin-bottom:8px;">
+        <div class="flex gap-2" style="margin-bottom:8px;">
+            <select id="nombre-edit-ambito" style="flex:1;">
+                <option value="ambos">Ámbito: ambos</option>
+                <option value="usuario">Ámbito: solo usuarios</option>
+                <option value="equipo">Ámbito: solo equipos</option>
+            </select>
+            <select id="nombre-edit-tipo" style="flex:1;">
+                <option value="bloqueado">Tipo: bloqueado (palabra prohibida)</option>
+                <option value="usado">Tipo: usado (nombre reservado)</option>
+            </select>
+        </div>
+        <input type="text" id="nombre-edit-nota" placeholder="Nota (opcional, solo para ti)" style="margin-bottom:8px;">
+        <button class="btn btn-blue" id="nombre-add-btn" style="width:100%;">➕ Añadir</button>
+    </div>
+
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+        <button class="btn btn-blue" id="load-nombres-btn">🔄 Cargar lista</button>
+        <input type="text" id="nombres-search" placeholder="Buscar..." style="min-width:200px;flex:1;">
+        <span style="font-size:12px;color:#8b949e;" id="nombres-count"></span>
+    </div>
+    <div class="card overflow-hidden">
+        <div id="nombres-list">
+            <p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Pulsa "Cargar lista" para ver las entradas</p>
         </div>
     </div>
 </div>
@@ -767,7 +806,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias','tarde-respuestas','tarde-sesiones','tarde-equipos','tarde-opiniones','escape-respuestas','escape-sesiones','push'].forEach(t => {
+        ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','nombres','misterios','dashboard','cuentas','incidencias','tarde-respuestas','tarde-sesiones','tarde-equipos','tarde-opiniones','escape-respuestas','escape-sesiones','push'].forEach(t => {
             const el = document.getElementById('tab-' + t);
             if (el) el.classList.toggle('hidden', t !== btn.dataset.tab);
         });
@@ -1333,7 +1372,7 @@ document.getElementById('notif-sent-modal').addEventListener('click', e => {
 function openValidateId(privId) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('[data-tab="cuentas"]')?.classList.add('active');
-    ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias'].forEach(t => {
+    ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','nombres','misterios','dashboard','cuentas','incidencias'].forEach(t => {
         const _el = document.getElementById('tab-' + t);
         if (_el) _el.classList.toggle('hidden', t !== 'cuentas');
     });
@@ -1349,7 +1388,7 @@ function prefillSendNotif(userId, titulo, mensaje) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     const notifTab = document.querySelector('[data-tab="notificaciones"]');
     notifTab?.classList.add('active');
-    ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','misterios','dashboard','cuentas','incidencias'].forEach(t => {
+    ['respuestas','notificaciones','historial','notifs-enviadas','feedback','usuarios','nombres','misterios','dashboard','cuentas','incidencias'].forEach(t => {
         const _el = document.getElementById('tab-' + t);
         if (_el) _el.classList.toggle('hidden', t !== 'notificaciones');
     });
@@ -1896,6 +1935,86 @@ async function deleteGroup(id) {
         if (data.error) { toast('Error: ' + data.error, false); return; }
         toast('🗑️ Grupo eliminado');
         await loadGroups();
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// NOMBRES CONTROLADOS (palabras prohibidas + nombres reservados)
+// ═══════════════════════════════════════════════════════════════════
+let allNombresControlados = [];
+
+document.getElementById('load-nombres-btn').addEventListener('click', loadNombresControlados);
+document.getElementById('nombre-add-btn').addEventListener('click', addNombreControlado);
+document.getElementById('nombres-search').addEventListener('input', renderNombresControlados);
+
+async function loadNombresControlados() {
+    const token = document.getElementById('admin-token').value.trim();
+    if (!token) { toast('Introduce el token admin', false); return; }
+    document.getElementById('nombres-list').innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">⏳ Cargando...</p>';
+    try {
+        const res  = await fetch(`${APPS_SCRIPT_URL}?action=getNombresControlados&token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        allNombresControlados = data.items || [];
+        renderNombresControlados();
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+function renderNombresControlados() {
+    const list   = document.getElementById('nombres-list');
+    const search = (document.getElementById('nombres-search').value || '').trim().toLowerCase();
+    const items  = allNombresControlados.filter(it => !search || it.palabra.toLowerCase().includes(search));
+
+    document.getElementById('nombres-count').textContent = `${items.length} entrada${items.length===1?'':'s'}`;
+
+    if (!items.length) {
+        list.innerHTML = '<p style="color:#8b949e;font-size:13px;text-align:center;padding:48px 16px;">Sin entradas.</p>';
+        return;
+    }
+
+    const ambitoLabel = { usuario: '👤 usuario', equipo: '🏳️ equipo', ambos: '👤🏳️ ambos' };
+    const tipoStyle   = {
+        bloqueado: 'background:#3d1418;color:#f87171;border:1px solid #7f1d1d;',
+        usado:     'background:#1e2a4a;color:#93c5fd;border:1px solid #1e3a8a;'
+    };
+    const tipoLabel = { bloqueado: '🚫 bloqueado', usado: '🔒 usado (reservado)' };
+
+    list.innerHTML = items.map(it => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #21262d;gap:8px;">
+            <div class="min-w-0">
+                <p style="font-size:13px;font-weight:700;color:#e6edf3;">${esc(it.palabra)}</p>
+                <p style="font-size:11px;color:#8b949e;">${ambitoLabel[it.ambito] || it.ambito}${it.nota ? ' · ' + esc(it.nota) : ''}</p>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                <span style="font-size:11px;padding:2px 8px;border-radius:10px;${tipoStyle[it.tipo]||''}">${tipoLabel[it.tipo] || esc(it.tipo)}</span>
+                <button class="btn btn-red" style="padding:3px 8px;font-size:11px;" onclick="deleteNombreControlado(${it.row})">🗑️</button>
+            </div>
+        </div>`).join('');
+}
+
+async function addNombreControlado() {
+    const palabra = document.getElementById('nombre-edit-palabra').value.trim();
+    const ambito  = document.getElementById('nombre-edit-ambito').value;
+    const tipo    = document.getElementById('nombre-edit-tipo').value;
+    const nota    = document.getElementById('nombre-edit-nota').value.trim();
+    if (!palabra) { toast('Escribe una palabra o nombre', false); return; }
+    try {
+        const data = await adminPost({ action: 'addNombreControlado', palabra, ambito, tipo, nota });
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        toast('✅ Añadido');
+        document.getElementById('nombre-edit-palabra').value = '';
+        document.getElementById('nombre-edit-nota').value = '';
+        await loadNombresControlados();
+    } catch(e) { toast('Error de conexión', false); }
+}
+
+async function deleteNombreControlado(row) {
+    if (!confirm('¿Eliminar esta entrada?')) return;
+    try {
+        const data = await adminPost({ action: 'deleteNombreControlado', row });
+        if (data.error) { toast('Error: ' + data.error, false); return; }
+        toast('🗑️ Eliminado');
+        await loadNombresControlados();
     } catch(e) { toast('Error de conexión', false); }
 }
 
